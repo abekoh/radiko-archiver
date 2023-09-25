@@ -81,9 +81,9 @@ var rules []Rule = []Rule{
 	{
 		Name:        "オードリーのオールナイトニッポン",
 		StationID:   LFR,
-		Weekday:     time.Tuesday,
+		Weekday:     time.Monday,
 		StartHour:   19,
-		StartMinute: 5,
+		StartMinute: 27,
 		Duration:    2 * time.Hour,
 	},
 }
@@ -125,6 +125,7 @@ func main() {
 		ticker := time.NewTicker(10 * time.Minute)
 		logger.Debug("start updateSchedule ticker")
 		for range ticker.C {
+			logger.Debug("update schedules")
 			newSches := newSchedules()
 			if diff := cmp.Diff(schedules, newSches); diff != "" {
 				logger.Info("schedules updated", "diff", diff)
@@ -145,22 +146,23 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
+				logger.Debug("ticker fired")
 				schedulesMu.RLock()
 				for _, sche := range schedules {
 					if sche.FetchTime.Before(time.Now()) {
 						logger.Info("start fetching", "schedule", sche)
 					} else {
-						ticker = time.NewTicker(min(1*time.Minute, sche.FetchTime.Sub(time.Now())))
+						ticker.Reset(min(1*time.Minute, sche.FetchTime.Sub(time.Now())))
 						break
 					}
 				}
 				schedulesMu.RUnlock()
 			case <-scheduleUpdateCh:
-				ticker.Stop()
+				logger.Debug("receive schedule update")
 				schedulesMu.RLock()
-				nextFetchTime := schedules[0]
+				nextFetchTime := schedules[0].FetchTime
 				schedulesMu.RUnlock()
-				ticker = time.NewTicker(min(1*time.Minute, nextFetchTime.FetchTime.Sub(time.Now())))
+				ticker.Reset(min(1*time.Minute, nextFetchTime.Sub(time.Now())))
 			}
 		}
 	}()
