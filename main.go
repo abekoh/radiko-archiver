@@ -46,9 +46,13 @@ func (r Rule) NextSchedules(n int) []Schedule {
 }
 
 func (r Rule) nextSchedule(t time.Time) Schedule {
+	dayAbs := t.Weekday() - r.Weekday
+	if dayAbs < 0 {
+		dayAbs += 7
+	}
 	s := Schedule{
 		StationID: r.StationID,
-		StartTime: time.Date(t.Year(), t.Month(), t.Day(), r.StartHour, r.StartMinute, 0, 0, JST),
+		StartTime: time.Date(t.Year(), t.Month(), t.Day()-int(dayAbs), r.StartHour, r.StartMinute, 0, 0, JST),
 		Duration:  r.Duration,
 	}
 	if s.StartTime.Before(t) || s.StartTime.Equal(t) {
@@ -77,9 +81,9 @@ var rules []Rule = []Rule{
 	{
 		Name:        "オードリーのオールナイトニッポン",
 		StationID:   LFR,
-		Weekday:     time.Sunday,
-		StartHour:   1,
-		StartMinute: 0,
+		Weekday:     time.Tuesday,
+		StartHour:   19,
+		StartMinute: 5,
 		Duration:    2 * time.Hour,
 	},
 }
@@ -107,7 +111,10 @@ func newSchedules() []Schedule {
 }
 
 func main() {
-	logger := slog.Default()
+	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
+	logger := slog.New(handler)
 
 	go func() {
 		schedulesMu.Lock()
@@ -116,6 +123,7 @@ func main() {
 		schedulesMu.Unlock()
 
 		ticker := time.NewTicker(10 * time.Minute)
+		logger.Debug("start updateSchedule ticker")
 		for range ticker.C {
 			newSches := newSchedules()
 			if diff := cmp.Diff(schedules, newSches); diff != "" {
@@ -123,12 +131,17 @@ func main() {
 				schedulesMu.Lock()
 				schedules = newSches
 				schedulesMu.Unlock()
+				scheduleUpdateCh <- struct{}{}
 			}
 		}
 	}()
 
 	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
+		schedulesMu.RLock()
+		ticker := time.NewTicker(min(1*time.Minute, schedules[0].FetchTime.Sub(time.Now())))
+		logger.Debug("start scheduler ticker")
+		schedulesMu.RUnlock()
+
 		for {
 			select {
 			case <-ticker.C:
@@ -137,6 +150,7 @@ func main() {
 					if sche.FetchTime.Before(time.Now()) {
 						logger.Info("start fetching", "schedule", sche)
 					} else {
+						ticker = time.NewTicker(min(1*time.Minute, sche.FetchTime.Sub(time.Now())))
 						break
 					}
 				}
