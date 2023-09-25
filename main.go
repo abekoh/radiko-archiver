@@ -110,6 +110,11 @@ func main() {
 	logger := slog.Default()
 
 	go func() {
+		schedulesMu.Lock()
+		schedules = newSchedules()
+		logger.Info("default schedules", "schedule", schedules)
+		schedulesMu.Unlock()
+
 		ticker := time.NewTicker(10 * time.Minute)
 		for range ticker.C {
 			newSches := newSchedules()
