@@ -1,11 +1,12 @@
 package main
 
 import (
+	"context"
 	"log/slog"
+	"math"
 	"os"
 	"os/signal"
 	"slices"
-	"sync"
 	"syscall"
 	"time"
 
@@ -21,7 +22,10 @@ const (
 	LFR StationID = "LFR" // ニッポン放送
 )
 
-const offsetTime = 6 * time.Hour
+const (
+	offsetTime      = 6 * time.Hour
+	plannerInterval = 10 * time.Minute
+)
 
 type Rule struct {
 	Name        string
@@ -88,12 +92,6 @@ var rules []Rule = []Rule{
 	},
 }
 
-var (
-	schedules        = make([]Schedule, 0, 100)
-	schedulesMu      sync.RWMutex
-	scheduleUpdateCh = make(chan struct{})
-)
-
 func newSchedules() []Schedule {
 	newSches := make([]Schedule, 0, 100)
 	for _, rule := range rules {
@@ -110,62 +108,89 @@ func newSchedules() []Schedule {
 	return newSches
 }
 
-func main() {
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})
-	logger := slog.New(handler)
+func runPlanner(toDispatcher chan<- []Schedule) {
+	logger := slog.Default().WithGroup("planner")
+	logger.Debug("start planner")
+	sches := newSchedules()
+	toDispatcher <- sches
 
-	go func() {
-		schedulesMu.Lock()
-		schedules = newSchedules()
-		logger.Info("default schedules", "schedule", schedules)
-		schedulesMu.Unlock()
-
-		ticker := time.NewTicker(10 * time.Minute)
-		logger.Debug("start updateSchedule ticker")
-		for range ticker.C {
-			logger.Debug("update schedules")
-			newSches := newSchedules()
-			if diff := cmp.Diff(schedules, newSches); diff != "" {
-				logger.Info("schedules updated", "diff", diff)
-				schedulesMu.Lock()
-				schedules = newSches
-				schedulesMu.Unlock()
-				scheduleUpdateCh <- struct{}{}
-			}
+	ticker := time.NewTicker(plannerInterval)
+	for range ticker.C {
+		logger.Debug("update schedules")
+		newSches := newSchedules()
+		if diff := cmp.Diff(sches, newSches); diff != "" {
+			logger.Info("schedules updated", "diff", diff)
+			sches = newSches
+			toDispatcher <- sches
 		}
-	}()
+	}
+}
 
-	go func() {
-		schedulesMu.RLock()
-		ticker := time.NewTicker(min(1*time.Minute, schedules[0].FetchTime.Sub(time.Now())))
-		logger.Debug("start scheduler ticker")
-		schedulesMu.RUnlock()
+func runDispatcher(toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
+	logger := slog.Default().WithGroup("planner")
+	logger.Debug("start planner")
+	sches := <-toDispatcher
+	nextDispatchDuration := func() time.Duration {
+		if len(sches) > 0 {
+			return sches[0].FetchTime.Sub(time.Now())
+		} else {
+			return math.MaxInt64
+		}
+	}
+	ticker := time.NewTicker(nextDispatchDuration())
 
-		for {
-			select {
-			case <-ticker.C:
-				logger.Debug("ticker fired")
-				schedulesMu.RLock()
-				for _, sche := range schedules {
-					if sche.FetchTime.Before(time.Now()) {
-						logger.Info("start fetching", "schedule", sche)
-					} else {
-						ticker.Reset(min(1*time.Minute, sche.FetchTime.Sub(time.Now())))
-						break
-					}
+	for {
+		select {
+		case <-ticker.C:
+			for len(sches) > 0 {
+				if sches[0].FetchTime.Before(time.Now()) || sches[0].FetchTime.Equal(time.Now()) {
+					toFetcher <- sches[0]
+					sches = sches[1:]
+				} else {
+					break
 				}
-				schedulesMu.RUnlock()
-			case <-scheduleUpdateCh:
-				logger.Debug("receive schedule update")
-				schedulesMu.RLock()
-				nextFetchTime := schedules[0].FetchTime
-				schedulesMu.RUnlock()
-				ticker.Reset(min(1*time.Minute, nextFetchTime.Sub(time.Now())))
 			}
+			ticker.Reset(nextDispatchDuration())
+		case sches = <-toDispatcher:
+			ticker.Reset(nextDispatchDuration())
 		}
-	}()
+	}
+}
+
+func runFetchers(toFetcher <-chan Schedule) {
+	logger := slog.Default().WithGroup("fetcher")
+	logger.Debug("start fetchers")
+	for {
+		select {
+		case sche := <-toFetcher:
+			go func(ctx context.Context, s Schedule, log *slog.Logger) {
+				log.Info("start fetching", "schedule", s)
+				time.Sleep(5 * time.Second)
+				log.Info("finish fetching", "schedule", s)
+			}(context.TODO(), sche, logger.WithGroup(time.Now().Format("20060102150405")))
+		}
+	}
+}
+
+func main() {
+	slog.SetDefault(
+		slog.New(
+			slog.NewTextHandler(
+				os.Stdout,
+				&slog.HandlerOptions{
+					Level: slog.LevelDebug,
+				}),
+		),
+	)
+
+	logger := slog.Default().WithGroup("main")
+
+	toDispatcher := make(chan []Schedule)
+	toFetcher := make(chan Schedule)
+
+	go runPlanner(toDispatcher)
+	go runDispatcher(toDispatcher, toFetcher)
+	go runFetchers(toFetcher)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
