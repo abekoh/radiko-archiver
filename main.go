@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/lmittmann/tint"
 )
 
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
@@ -109,7 +110,7 @@ func newSchedules() []Schedule {
 }
 
 func runPlanner(toDispatcher chan<- []Schedule) {
-	logger := slog.Default().WithGroup("planner")
+	logger := slog.Default().With("job", "planner")
 	logger.Debug("start planner")
 	sches := newSchedules()
 	toDispatcher <- sches
@@ -127,7 +128,7 @@ func runPlanner(toDispatcher chan<- []Schedule) {
 }
 
 func runDispatcher(toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
-	logger := slog.Default().WithGroup("planner")
+	logger := slog.Default().With("job", "planner")
 	logger.Debug("start planner")
 	sches := <-toDispatcher
 	nextDispatchDuration := func() time.Duration {
@@ -142,8 +143,10 @@ func runDispatcher(toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
 	for {
 		select {
 		case <-ticker.C:
+			logger.Debug("dispatch start")
 			for len(sches) > 0 {
 				if sches[0].FetchTime.Before(time.Now()) || sches[0].FetchTime.Equal(time.Now()) {
+					logger.Debug("dispatch", "schedule", sches[0])
 					toFetcher <- sches[0]
 					sches = sches[1:]
 				} else {
@@ -152,13 +155,14 @@ func runDispatcher(toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
 			}
 			ticker.Reset(nextDispatchDuration())
 		case sches = <-toDispatcher:
+			logger.Debug("receive new schedules", "schedules", sches)
 			ticker.Reset(nextDispatchDuration())
 		}
 	}
 }
 
 func runFetchers(toFetcher <-chan Schedule) {
-	logger := slog.Default().WithGroup("fetcher")
+	logger := slog.Default().With("job", "fetchers")
 	logger.Debug("start fetchers")
 	for {
 		select {
@@ -167,7 +171,7 @@ func runFetchers(toFetcher <-chan Schedule) {
 				log.Info("start fetching", "schedule", s)
 				time.Sleep(5 * time.Second)
 				log.Info("finish fetching", "schedule", s)
-			}(context.TODO(), sche, logger.WithGroup(time.Now().Format("20060102150405")))
+			}(context.TODO(), sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
 		}
 	}
 }
@@ -175,15 +179,17 @@ func runFetchers(toFetcher <-chan Schedule) {
 func main() {
 	slog.SetDefault(
 		slog.New(
-			slog.NewTextHandler(
-				os.Stdout,
-				&slog.HandlerOptions{
-					Level: slog.LevelDebug,
-				}),
+			tint.NewHandler(
+				os.Stderr,
+				&tint.Options{
+					Level:      slog.LevelDebug,
+					TimeFormat: time.Kitchen,
+				},
+			),
 		),
 	)
 
-	logger := slog.Default().WithGroup("main")
+	logger := slog.Default().With("job", "main")
 
 	toDispatcher := make(chan []Schedule)
 	toFetcher := make(chan Schedule)
