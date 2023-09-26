@@ -30,6 +30,7 @@ const (
 	offsetTime      = 6 * time.Hour
 	plannerInterval = 10 * time.Minute
 	rulesPath       = "rules.toml"
+	fetchTimeout    = 3 * time.Minute
 )
 
 type Rule struct {
@@ -159,7 +160,7 @@ func newSchedules(rules []Rule) []Schedule {
 	return newSches
 }
 
-func runPlanner(toDispatcher chan<- []Schedule) {
+func runPlanner(ctx context.Context, toDispatcher chan<- []Schedule) {
 	logger := slog.Default().With("job", "planner")
 	logger.Debug("start planner")
 
@@ -209,11 +210,14 @@ func runPlanner(toDispatcher chan<- []Schedule) {
 					updateSches()
 				}
 			}
+		case <-ctx.Done():
+			logger.Debug("stop planner")
+			return
 		}
 	}
 }
 
-func runDispatcher(toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
+func runDispatcher(ctx context.Context, toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
 	logger := slog.Default().With("job", "dispatcher")
 	logger.Debug("start dispatcher")
 	sches := <-toDispatcher
@@ -243,21 +247,29 @@ func runDispatcher(toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
 		case sches = <-toDispatcher:
 			logger.Debug("receive new schedules", "schedules", sches)
 			timer.Reset(nextDispatchDuration())
+		case <-ctx.Done():
+			logger.Debug("stop dispatcher")
+			return
 		}
 	}
 }
 
-func runFetchers(toFetcher <-chan Schedule) {
+func runFetchers(ctx context.Context, toFetcher <-chan Schedule) {
 	logger := slog.Default().With("job", "fetchers")
 	logger.Debug("start fetchers")
 	for {
 		select {
 		case sche := <-toFetcher:
+			c, cancel := context.WithTimeout(ctx, fetchTimeout)
+			defer cancel()
 			go func(ctx context.Context, s Schedule, log *slog.Logger) {
 				log.Info("start fetching", "schedule", s)
 				time.Sleep(5 * time.Second)
 				log.Info("finish fetching", "schedule", s)
-			}(context.TODO(), sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
+			}(c, sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
+		case <-ctx.Done():
+			logger.Debug("stop fetchers")
+			return
 		}
 	}
 }
@@ -282,9 +294,11 @@ func main() {
 	toDispatcher := make(chan []Schedule)
 	toFetcher := make(chan Schedule)
 
-	go runPlanner(toDispatcher)
-	go runDispatcher(toDispatcher, toFetcher)
-	go runFetchers(toFetcher)
+	ctx := context.Background()
+
+	go runPlanner(ctx, toDispatcher)
+	go runDispatcher(ctx, toDispatcher, toFetcher)
+	go runFetchers(ctx, toFetcher)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
