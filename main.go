@@ -28,6 +28,7 @@ const (
 const (
 	offsetTime      = 6 * time.Hour
 	plannerInterval = 10 * time.Minute
+	rulesPath       = "rules.toml"
 )
 
 type Rule struct {
@@ -160,23 +161,41 @@ func newSchedules(rules []Rule) []Schedule {
 func runPlanner(toDispatcher chan<- []Schedule) {
 	logger := slog.Default().With("job", "planner")
 	logger.Debug("start planner")
-	rules, err := loadRules("rules.toml")
-	logger.Debug("load rules", "rules", rules)
-	if err != nil {
-		panic(fmt.Errorf("failed to load rules: %w", err))
-	}
-	sches := newSchedules(rules)
-	logger.Info("initial schedules", "schedules", sches)
-	toDispatcher <- sches
 
-	ticker := time.NewTicker(plannerInterval)
-	for range ticker.C {
+	var rules []Rule
+	loadr := func() {
+		rs, err := loadRules(rulesPath)
+		if err != nil {
+			panic(fmt.Errorf("failed to load rules: %w", err))
+		}
+		rules = rs
+		logger.Debug("load rules", "rules", rules)
+	}
+	loadr()
+
+	var sches []Schedule
+	updateSches := func() {
 		logger.Debug("update schedules")
 		newSches := newSchedules(rules)
 		if diff := cmp.Diff(sches, newSches); diff != "" {
 			logger.Info("schedules updated", "diff", diff)
 			sches = newSches
 			toDispatcher <- sches
+		}
+	}
+	updateSches()
+
+	ticker := time.NewTicker(plannerInterval)
+	for {
+		select {
+		case <-ticker.C:
+			logger.Debug("update schedules")
+			newSches := newSchedules(rules)
+			if diff := cmp.Diff(sches, newSches); diff != "" {
+				logger.Info("schedules updated", "diff", diff)
+				sches = newSches
+				toDispatcher <- sches
+			}
 		}
 	}
 }
@@ -192,11 +211,11 @@ func runDispatcher(toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
 			return math.MaxInt64
 		}
 	}
-	ticker := time.NewTicker(nextDispatchDuration())
+	timer := time.NewTimer(nextDispatchDuration())
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-timer.C:
 			logger.Debug("dispatch start")
 			for len(sches) > 0 {
 				if sches[0].FetchTime.Before(time.Now()) || sches[0].FetchTime.Equal(time.Now()) {
@@ -207,10 +226,10 @@ func runDispatcher(toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
 					break
 				}
 			}
-			ticker.Reset(nextDispatchDuration())
+			timer.Reset(nextDispatchDuration())
 		case sches = <-toDispatcher:
 			logger.Debug("receive new schedules", "schedules", sches)
-			ticker.Reset(nextDispatchDuration())
+			timer.Reset(nextDispatchDuration())
 		}
 	}
 }
