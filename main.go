@@ -128,7 +128,7 @@ func runPlanner(toDispatcher chan<- []Schedule) {
 }
 
 func runDispatcher(toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
-	logger := slog.Default().With("job", "planner")
+	logger := slog.Default().With("job", "dispatcher")
 	logger.Debug("start dispatcher")
 	sches := <-toDispatcher
 	nextDispatchDuration := func() time.Duration {
