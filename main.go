@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/lmittmann/tint"
 )
@@ -57,6 +58,7 @@ func (r Rule) nextSchedule(t time.Time) Schedule {
 		dayAbs += 7
 	}
 	s := Schedule{
+		RuleName:  r.Name,
 		StationID: r.StationID,
 		StartTime: time.Date(t.Year(), t.Month(), t.Day()-int(dayAbs), r.StartHour, r.StartMinute, 0, 0, JST),
 		Duration:  r.Duration,
@@ -69,6 +71,7 @@ func (r Rule) nextSchedule(t time.Time) Schedule {
 }
 
 type Schedule struct {
+	RuleName  string
 	StationID StationID
 	StartTime time.Time
 	Duration  time.Duration
@@ -77,8 +80,9 @@ type Schedule struct {
 
 func (s Schedule) String() string {
 	return fmt.Sprintf(
-		"[%s] %s-%s(%s)(fetchTime:%s)",
+		"[%s] %s %s-%s(%s)(fetchTime:%s)",
 		s.StationID,
+		s.RuleName,
 		s.StartTime.Format("2006/01/02 15:04"),
 		s.StartTime.Add(s.Duration).Format("15:04"),
 		s.Duration,
@@ -86,26 +90,58 @@ func (s Schedule) String() string {
 	)
 }
 
-var rules []Rule = []Rule{
-	{
-		Name:        "星野源のオールナイトニッポン",
-		StationID:   LFR,
-		Weekday:     time.Wednesday,
-		StartHour:   1,
-		StartMinute: 0,
-		Duration:    2 * time.Hour,
-	},
-	{
-		Name:        "オードリーのオールナイトニッポン",
-		StationID:   LFR,
-		Weekday:     time.Tuesday,
-		StartHour:   16,
-		StartMinute: 12,
-		Duration:    2 * time.Hour,
-	},
+func loadRules(path string) ([]Rule, error) {
+	type tomlConfig struct {
+		Rules []struct {
+			Name      string `toml:"name"`
+			StationID string `toml:"station_id"`
+			Weekday   string `toml:"weekday"`
+			Start     string `toml:"start"`
+			Duration  string `toml:"duration"`
+		} `toml:"rules"`
+	}
+	var config tomlConfig
+	if _, err := toml.DecodeFile(path, &config); err != nil {
+		return nil, err
+	}
+
+	rules := make([]Rule, len(config.Rules))
+	for i, cRule := range config.Rules {
+		rules[i] = Rule{
+			Name:      cRule.Name,
+			StationID: StationID(cRule.StationID),
+		}
+		switch cRule.Weekday {
+		case "Sun":
+			rules[i].Weekday = time.Sunday
+		case "Mon":
+			rules[i].Weekday = time.Monday
+		case "Tue":
+			rules[i].Weekday = time.Tuesday
+		case "Wed":
+			rules[i].Weekday = time.Wednesday
+		case "Thu":
+			rules[i].Weekday = time.Thursday
+		case "Fri":
+			rules[i].Weekday = time.Friday
+		case "Sat":
+			rules[i].Weekday = time.Saturday
+		default:
+			return nil, fmt.Errorf("invalid weekday: %s", cRule.Weekday)
+		}
+		if _, err := fmt.Sscanf(cRule.Start, "%d:%d", &rules[i].StartHour, &rules[i].StartMinute); err != nil {
+			return nil, fmt.Errorf("invalid start time: %s", cRule.Start)
+		}
+		dur, err := time.ParseDuration(cRule.Duration)
+		if err != nil {
+			return nil, fmt.Errorf("invalid duration: %s", cRule.Duration)
+		}
+		rules[i].Duration = dur
+	}
+	return rules, nil
 }
 
-func newSchedules() []Schedule {
+func newSchedules(rules []Rule) []Schedule {
 	newSches := make([]Schedule, 0, 100)
 	for _, rule := range rules {
 		newSches = append(newSches, rule.NextSchedules(3)...)
@@ -124,14 +160,19 @@ func newSchedules() []Schedule {
 func runPlanner(toDispatcher chan<- []Schedule) {
 	logger := slog.Default().With("job", "planner")
 	logger.Debug("start planner")
-	sches := newSchedules()
+	rules, err := loadRules("rules.toml")
+	logger.Debug("load rules", "rules", rules)
+	if err != nil {
+		panic(fmt.Errorf("failed to load rules: %w", err))
+	}
+	sches := newSchedules(rules)
 	logger.Info("initial schedules", "schedules", sches)
 	toDispatcher <- sches
 
 	ticker := time.NewTicker(plannerInterval)
 	for range ticker.C {
 		logger.Debug("update schedules")
-		newSches := newSchedules()
+		newSches := newSchedules(rules)
 		if diff := cmp.Diff(sches, newSches); diff != "" {
 			logger.Info("schedules updated", "diff", diff)
 			sches = newSches
