@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/fsnotify/fsnotify"
 	"github.com/google/go-cmp/cmp"
 	"github.com/lmittmann/tint"
 )
@@ -163,13 +164,15 @@ func runPlanner(toDispatcher chan<- []Schedule) {
 	logger.Debug("start planner")
 
 	var rules []Rule
-	loadr := func() {
+	loadr := func() bool {
 		rs, err := loadRules(rulesPath)
 		if err != nil {
-			panic(fmt.Errorf("failed to load rules: %w", err))
+			logger.Error("failed to load rules", "error", err)
+			return false
 		}
 		rules = rs
 		logger.Debug("load rules", "rules", rules)
+		return true
 	}
 	loadr()
 
@@ -178,23 +181,33 @@ func runPlanner(toDispatcher chan<- []Schedule) {
 		logger.Debug("update schedules")
 		newSches := newSchedules(rules)
 		if diff := cmp.Diff(sches, newSches); diff != "" {
-			logger.Info("schedules updated", "diff", diff)
+			logger.Info("schedules updated", "new", newSches)
 			sches = newSches
 			toDispatcher <- sches
 		}
 	}
 	updateSches()
 
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		panic(fmt.Errorf("failed to create watcher: %w", err))
+	}
+	defer watcher.Close()
+	if err := watcher.Add(rulesPath); err != nil {
+		panic(fmt.Errorf("failed to add watcher: %w", err))
+	}
+
 	ticker := time.NewTicker(plannerInterval)
 	for {
 		select {
 		case <-ticker.C:
-			logger.Debug("update schedules")
-			newSches := newSchedules(rules)
-			if diff := cmp.Diff(sches, newSches); diff != "" {
-				logger.Info("schedules updated", "diff", diff)
-				sches = newSches
-				toDispatcher <- sches
+			updateSches()
+		case event := <-watcher.Events:
+			if event.Has(fsnotify.Write) {
+				logger.Debug("rules file updated", "path", event.Name)
+				if loadr() {
+					updateSches()
+				}
 			}
 		}
 	}
