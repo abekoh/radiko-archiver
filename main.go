@@ -262,7 +262,7 @@ func runFetchers(toFetcher <-chan Schedule) {
 	}
 }
 
-func main() {
+func init() {
 	slog.SetDefault(
 		slog.New(
 			tint.NewHandler(
@@ -274,7 +274,9 @@ func main() {
 			),
 		),
 	)
+}
 
+func main() {
 	logger := slog.Default().With("job", "main")
 
 	toDispatcher := make(chan []Schedule)
