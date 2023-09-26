@@ -14,7 +14,7 @@ func TestRunFetchers(t *testing.T) {
 	toFetcher := make(chan Schedule)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go RunFetchers(ctx, toFetcher, tmpDir)
+	RunFetchers(ctx, toFetcher, tmpDir)
 	toFetcher <- Schedule{
 		RuleName:  "オードリーのオールナイトニッポン",
 		StationID: LFR,

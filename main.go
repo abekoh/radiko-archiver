@@ -177,7 +177,6 @@ func RunPlanner(ctx context.Context, toDispatcher chan<- []Schedule, rulesPath s
 		logger.Debug("load rules", "rules", rules)
 		return true
 	}
-	loadr()
 
 	var sches []Schedule
 	updateSches := func() {
@@ -189,34 +188,37 @@ func RunPlanner(ctx context.Context, toDispatcher chan<- []Schedule, rulesPath s
 			toDispatcher <- sches
 		}
 	}
-	updateSches()
 
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		panic(fmt.Errorf("failed to create watcher: %w", err))
-	}
-	defer watcher.Close()
-	if err := watcher.Add(rulesPath); err != nil {
-		panic(fmt.Errorf("failed to add watcher: %w", err))
-	}
+	go func() {
+		loadr()
+		updateSches()
 
-	ticker := time.NewTicker(plannerInterval)
-	for {
-		select {
-		case <-ticker.C:
-			updateSches()
-		case event := <-watcher.Events:
-			if event.Has(fsnotify.Write) {
-				logger.Debug("rules file updated", "path", event.Name)
-				if loadr() {
-					updateSches()
-				}
-			}
-		case <-ctx.Done():
-			logger.Debug("stop planner")
-			return
+		ticker := time.NewTicker(plannerInterval)
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			panic(fmt.Errorf("failed to create watcher: %w", err))
 		}
-	}
+		defer watcher.Close()
+		if err := watcher.Add(rulesPath); err != nil {
+			panic(fmt.Errorf("failed to add watcher: %w", err))
+		}
+		for {
+			select {
+			case <-ticker.C:
+				updateSches()
+			case event := <-watcher.Events:
+				if event.Has(fsnotify.Write) {
+					logger.Debug("rules file updated", "path", event.Name)
+					if loadr() {
+						updateSches()
+					}
+				}
+			case <-ctx.Done():
+				logger.Debug("stop planner")
+				return
+			}
+		}
+	}()
 }
 
 func RunDispatcher(ctx context.Context, toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
@@ -230,30 +232,32 @@ func RunDispatcher(ctx context.Context, toDispatcher <-chan []Schedule, toFetche
 			return math.MaxInt64
 		}
 	}
-	timer := time.NewTimer(nextDispatchDuration())
 
-	for {
-		select {
-		case <-timer.C:
-			logger.Debug("dispatch start")
-			for len(sches) > 0 {
-				if sches[0].FetchTime.Before(time.Now()) || sches[0].FetchTime.Equal(time.Now()) {
-					logger.Debug("dispatch", "schedule", sches[0])
-					toFetcher <- sches[0]
-					sches = sches[1:]
-				} else {
-					break
+	go func() {
+		timer := time.NewTimer(nextDispatchDuration())
+		for {
+			select {
+			case <-timer.C:
+				logger.Debug("dispatch start")
+				for len(sches) > 0 {
+					if sches[0].FetchTime.Before(time.Now()) || sches[0].FetchTime.Equal(time.Now()) {
+						logger.Debug("dispatch", "schedule", sches[0])
+						toFetcher <- sches[0]
+						sches = sches[1:]
+					} else {
+						break
+					}
 				}
+				timer.Reset(nextDispatchDuration())
+			case sches = <-toDispatcher:
+				logger.Debug("receive new schedules", "schedules", sches)
+				timer.Reset(nextDispatchDuration())
+			case <-ctx.Done():
+				logger.Debug("stop dispatcher")
+				return
 			}
-			timer.Reset(nextDispatchDuration())
-		case sches = <-toDispatcher:
-			logger.Debug("receive new schedules", "schedules", sches)
-			timer.Reset(nextDispatchDuration())
-		case <-ctx.Done():
-			logger.Debug("stop dispatcher")
-			return
 		}
-	}
+	}()
 }
 
 func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath string) {
@@ -265,40 +269,42 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 		panic(fmt.Errorf("failed to create radiko client: %w", err))
 	}
 
-	for {
-		select {
-		case sche := <-toFetcher:
-			c, cancel := context.WithTimeout(ctx, fetchTimeout)
-			defer cancel()
-			go func(ctx context.Context, s Schedule, log *slog.Logger) {
-				log.Info("start fetching", "schedule", s)
-				pg, err := client.GetProgramByStartTime(ctx, string(s.StationID), s.StartTime)
-				if err != nil {
-					log.Error("failed to fetch program", "error", err)
-					return
-				}
-				log.Debug("get program", "program", pg)
+	go func() {
+		for {
+			select {
+			case sche := <-toFetcher:
+				c, cancel := context.WithTimeout(ctx, fetchTimeout)
+				defer cancel()
+				go func(ctx context.Context, s Schedule, log *slog.Logger) {
+					log.Info("start fetching", "schedule", s)
+					pg, err := client.GetProgramByStartTime(ctx, string(s.StationID), s.StartTime)
+					if err != nil {
+						log.Error("failed to fetch program", "error", err)
+						return
+					}
+					log.Debug("get program", "program", pg)
 
-				xmlFile, err := os.Create(fmt.Sprintf("%s/%s_%s_%s.xml", outDirPath, pg.Ft, s.StationID, pg.Title))
-				if err != nil {
-					log.Error("failed to create file", "error", err)
-					return
-				}
-				defer xmlFile.Close()
-				xmlEncoder := xml.NewEncoder(xmlFile)
-				xmlEncoder.Indent("", "  ")
-				if err := xmlEncoder.Encode(pg); err != nil {
-					log.Error("failed to encode xml", "error", err)
-					return
-				}
+					xmlFile, err := os.Create(fmt.Sprintf("%s/%s_%s_%s.xml", outDirPath, pg.Ft, s.StationID, pg.Title))
+					if err != nil {
+						log.Error("failed to create file", "error", err)
+						return
+					}
+					defer xmlFile.Close()
+					xmlEncoder := xml.NewEncoder(xmlFile)
+					xmlEncoder.Indent("", "  ")
+					if err := xmlEncoder.Encode(pg); err != nil {
+						log.Error("failed to encode xml", "error", err)
+						return
+					}
 
-				log.Info("finish fetching", "schedule", s)
-			}(c, sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
-		case <-ctx.Done():
-			logger.Debug("stop fetchers")
-			return
+					log.Info("finish fetching", "schedule", s)
+				}(c, sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
+			case <-ctx.Done():
+				logger.Debug("stop fetchers")
+				return
+			}
 		}
-	}
+	}()
 }
 
 func init() {
@@ -329,9 +335,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go RunPlanner(ctx, toDispatcher, rulesPath)
-	go RunDispatcher(ctx, toDispatcher, toFetcher)
-	go RunFetchers(ctx, toFetcher, outDirPath)
+	RunPlanner(ctx, toDispatcher, rulesPath)
+	RunDispatcher(ctx, toDispatcher, toFetcher)
+	RunFetchers(ctx, toFetcher, outDirPath)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
