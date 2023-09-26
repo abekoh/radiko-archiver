@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"math"
@@ -29,7 +30,6 @@ const (
 const (
 	offsetTime      = 6 * time.Hour
 	plannerInterval = 10 * time.Minute
-	rulesPath       = "rules.toml"
 	fetchTimeout    = 3 * time.Minute
 )
 
@@ -160,7 +160,7 @@ func newSchedules(rules []Rule) []Schedule {
 	return newSches
 }
 
-func RunPlanner(ctx context.Context, toDispatcher chan<- []Schedule) {
+func RunPlanner(ctx context.Context, toDispatcher chan<- []Schedule, rulesPath string) {
 	logger := slog.Default().With("job", "planner")
 	logger.Debug("start planner")
 
@@ -254,7 +254,7 @@ func RunDispatcher(ctx context.Context, toDispatcher <-chan []Schedule, toFetche
 	}
 }
 
-func RunFetchers(ctx context.Context, toFetcher <-chan Schedule) {
+func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath string) {
 	logger := slog.Default().With("job", "fetchers")
 	logger.Debug("start fetchers")
 	for {
@@ -289,6 +289,11 @@ func init() {
 }
 
 func main() {
+	var rulesPath, outDirPath string
+	flag.StringVar(&rulesPath, "rules", "rules.toml", "rules config path")
+	flag.StringVar(&outDirPath, "out", "out", "output directory path")
+	flag.Parse()
+
 	logger := slog.Default().With("job", "main")
 
 	toDispatcher := make(chan []Schedule)
@@ -297,9 +302,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go RunPlanner(ctx, toDispatcher)
+	go RunPlanner(ctx, toDispatcher, rulesPath)
 	go RunDispatcher(ctx, toDispatcher, toFetcher)
-	go RunFetchers(ctx, toFetcher)
+	go RunFetchers(ctx, toFetcher, outDirPath)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
