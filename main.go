@@ -86,9 +86,9 @@ var rules []Rule = []Rule{
 	{
 		Name:        "オードリーのオールナイトニッポン",
 		StationID:   LFR,
-		Weekday:     time.Monday,
-		StartHour:   19,
-		StartMinute: 27,
+		Weekday:     time.Tuesday,
+		StartHour:   16,
+		StartMinute: 12,
 		Duration:    2 * time.Hour,
 	},
 }
@@ -129,7 +129,7 @@ func runPlanner(toDispatcher chan<- []Schedule) {
 
 func runDispatcher(toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
 	logger := slog.Default().With("job", "planner")
-	logger.Debug("start planner")
+	logger.Debug("start dispatcher")
 	sches := <-toDispatcher
 	nextDispatchDuration := func() time.Duration {
 		if len(sches) > 0 {
