@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math"
 	"os"
@@ -74,6 +75,17 @@ type Schedule struct {
 	FetchTime time.Time
 }
 
+func (s Schedule) String() string {
+	return fmt.Sprintf(
+		"[%s] %s-%s(%s)(fetchTime:%s)",
+		s.StationID,
+		s.StartTime.Format("2006/01/02 15:04"),
+		s.StartTime.Add(s.Duration).Format("15:04"),
+		s.Duration,
+		s.FetchTime.Format("2006/01/02 15:04"),
+	)
+}
+
 var rules []Rule = []Rule{
 	{
 		Name:        "星野源のオールナイトニッポン",
@@ -113,6 +125,7 @@ func runPlanner(toDispatcher chan<- []Schedule) {
 	logger := slog.Default().With("job", "planner")
 	logger.Debug("start planner")
 	sches := newSchedules()
+	logger.Info("initial schedules", "schedules", sches)
 	toDispatcher <- sches
 
 	ticker := time.NewTicker(plannerInterval)
