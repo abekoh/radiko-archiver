@@ -294,7 +294,8 @@ func main() {
 	toDispatcher := make(chan []Schedule)
 	toFetcher := make(chan Schedule)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go runPlanner(ctx, toDispatcher)
 	go runDispatcher(ctx, toDispatcher, toFetcher)
