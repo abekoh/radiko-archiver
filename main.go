@@ -160,7 +160,7 @@ func newSchedules(rules []Rule) []Schedule {
 	return newSches
 }
 
-func runPlanner(ctx context.Context, toDispatcher chan<- []Schedule) {
+func RunPlanner(ctx context.Context, toDispatcher chan<- []Schedule) {
 	logger := slog.Default().With("job", "planner")
 	logger.Debug("start planner")
 
@@ -217,7 +217,7 @@ func runPlanner(ctx context.Context, toDispatcher chan<- []Schedule) {
 	}
 }
 
-func runDispatcher(ctx context.Context, toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
+func RunDispatcher(ctx context.Context, toDispatcher <-chan []Schedule, toFetcher chan<- Schedule) {
 	logger := slog.Default().With("job", "dispatcher")
 	logger.Debug("start dispatcher")
 	sches := <-toDispatcher
@@ -254,7 +254,7 @@ func runDispatcher(ctx context.Context, toDispatcher <-chan []Schedule, toFetche
 	}
 }
 
-func runFetchers(ctx context.Context, toFetcher <-chan Schedule) {
+func RunFetchers(ctx context.Context, toFetcher <-chan Schedule) {
 	logger := slog.Default().With("job", "fetchers")
 	logger.Debug("start fetchers")
 	for {
@@ -297,9 +297,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go runPlanner(ctx, toDispatcher)
-	go runDispatcher(ctx, toDispatcher, toFetcher)
-	go runFetchers(ctx, toFetcher)
+	go RunPlanner(ctx, toDispatcher)
+	go RunDispatcher(ctx, toDispatcher, toFetcher)
+	go RunFetchers(ctx, toFetcher)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
