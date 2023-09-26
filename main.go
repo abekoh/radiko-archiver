@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/xml"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/go-cmp/cmp"
 	"github.com/lmittmann/tint"
+	"github.com/yyoshiki41/go-radiko"
 )
 
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
@@ -257,6 +259,12 @@ func RunDispatcher(ctx context.Context, toDispatcher <-chan []Schedule, toFetche
 func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath string) {
 	logger := slog.Default().With("job", "fetchers")
 	logger.Debug("start fetchers")
+
+	client, err := radiko.New("")
+	if err != nil {
+		panic(fmt.Errorf("failed to create radiko client: %w", err))
+	}
+
 	for {
 		select {
 		case sche := <-toFetcher:
@@ -264,7 +272,26 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 			defer cancel()
 			go func(ctx context.Context, s Schedule, log *slog.Logger) {
 				log.Info("start fetching", "schedule", s)
-				time.Sleep(5 * time.Second)
+				pg, err := client.GetProgramByStartTime(ctx, string(s.StationID), s.StartTime)
+				if err != nil {
+					log.Error("failed to fetch program", "error", err)
+					return
+				}
+				log.Debug("get program", "program", pg)
+
+				xmlFile, err := os.Create(fmt.Sprintf("%s/%s_%s_%s.xml", outDirPath, pg.Ft, s.StationID, pg.Title))
+				if err != nil {
+					log.Error("failed to create file", "error", err)
+					return
+				}
+				defer xmlFile.Close()
+				xmlEncoder := xml.NewEncoder(xmlFile)
+				xmlEncoder.Indent("", "  ")
+				if err := xmlEncoder.Encode(pg); err != nil {
+					log.Error("failed to encode xml", "error", err)
+					return
+				}
+
 				log.Info("finish fetching", "schedule", s)
 			}(c, sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
 		case <-ctx.Done():
