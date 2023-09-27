@@ -264,7 +264,7 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 	logger := slog.Default().With("job", "fetchers")
 	logger.Debug("start fetchers")
 
-	client, err := radiko.New("")
+	radikoClient, err := radiko.New("")
 	if err != nil {
 		panic(fmt.Errorf("failed to create radiko client: %w", err))
 	}
@@ -277,7 +277,7 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 				defer cancel()
 				go func(ctx context.Context, s Schedule, log *slog.Logger) {
 					log.Info("start fetching", "schedule", s)
-					pg, err := client.GetProgramByStartTime(ctx, string(s.StationID), s.StartTime)
+					pg, err := radikoClient.GetProgramByStartTime(ctx, string(s.StationID), s.StartTime)
 					if err != nil {
 						log.Error("failed to fetch program", "error", err)
 						return
