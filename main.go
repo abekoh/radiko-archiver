@@ -268,6 +268,10 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 	if err != nil {
 		panic(fmt.Errorf("failed to create radiko client: %w", err))
 	}
+	_, err = radikoClient.AuthorizeToken(ctx)
+	if err != nil {
+		panic(fmt.Errorf("failed to authorize token: %w", err))
+	}
 
 	go func() {
 		for {
@@ -296,6 +300,19 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 						log.Error("failed to encode xml", "error", err)
 						return
 					}
+
+					m3u8URI, err := radikoClient.TimeshiftPlaylistM3U8(ctx, string(s.StationID), s.StartTime)
+					if err != nil {
+						log.Error("failed to get m3u8URI", "error", err)
+						return
+					}
+					log.Debug("got m3u8URI", "m3u8URI", m3u8URI)
+					chunkList, err := radiko.GetChunklistFromM3U8(m3u8URI)
+					if err != nil {
+						log.Error("failed to get chunkList", "error", err)
+						return
+					}
+					log.Debug("got chunkList", "chunkList[:5]", chunkList[:5], "len(chunkList)", len(chunkList))
 
 					log.Info("finish fetching", "schedule", s)
 				}(c, sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
