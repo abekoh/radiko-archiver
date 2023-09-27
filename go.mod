@@ -13,5 +13,6 @@ require (
 	github.com/grafov/m3u8 v0.11.1 // indirect
 	github.com/yyoshiki41/go-radiko v0.9.0 // indirect
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e // indirect
+	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.0.0-20220908164124-27713097b956 // indirect
 )

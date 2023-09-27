@@ -5,10 +5,13 @@ import (
 	"encoding/xml"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
+	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"syscall"
 	"time"
@@ -18,6 +21,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/lmittmann/tint"
 	"github.com/yyoshiki41/go-radiko"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
@@ -307,14 +312,23 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 						return
 					}
 					log.Debug("got m3u8URI", "m3u8URI", m3u8URI)
+
 					chunkList, err := radiko.GetChunklistFromM3U8(m3u8URI)
 					if err != nil {
 						log.Error("failed to get chunkList", "error", err)
 						return
 					}
-					log.Debug("got chunkList", "chunkList[:5]", chunkList[:5], "len(chunkList)", len(chunkList))
+					log.Debug("got chunkList", "chunkList[:5]", chunkList[:5], "len()", len(chunkList))
 
-					log.Info("finish fetching", "schedule", s)
+					tempDirPath := os.TempDir()
+					log.Debug("tempDirPath", "tempDirPath", tempDirPath)
+					if err := bulkDownload(ctx, chunkList, tempDirPath, string(s.StationID)+s.StartTime.Format("20060102150405")+"_"); err != nil {
+						log.Error("failed to download chunks", "error", err)
+						return
+					}
+					log.Debug("complete downloading chunks")
+
+					log.Info("finish fetching")
 				}(c, sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
 			case <-ctx.Done():
 				logger.Debug("stop fetchers")
@@ -322,6 +336,71 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 			}
 		}
 	}()
+}
+
+const (
+	maxAttempts    = 3
+	maxConcurrents = 64
+)
+
+func bulkDownload(ctx context.Context, urls []string, outDirPath, fileNamePrefix string) error {
+	sem := semaphore.NewWeighted(maxConcurrents)
+	g, ctx := errgroup.WithContext(ctx)
+	for _, url := range urls {
+		url := url
+		g.Go(func() error {
+			if err := sem.Acquire(ctx, 1); err != nil {
+				return fmt.Errorf("failed to acquire semaphore: %w", err)
+			}
+			defer sem.Release(1)
+
+			attempts := 0
+			for {
+				attempts++
+				_, urlFilename := filepath.Split(url)
+				if err := download(ctx, url, outDirPath, fileNamePrefix+urlFilename); err != nil {
+					if attempts >= maxAttempts {
+						return fmt.Errorf("failed to download: %w", err)
+					}
+				} else {
+					break
+				}
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("failed to download one job: %w", err)
+	}
+	return nil
+}
+
+func download(ctx context.Context, url, outDirPath, filename string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	file, err := os.Create(filepath.Join(outDirPath, filename))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return err
+	}
+	return err
 }
 
 func init() {
