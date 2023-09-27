@@ -322,7 +322,12 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 
 					tempDirPath := os.TempDir()
 					log.Debug("tempDirPath", "tempDirPath", tempDirPath)
-					if err := bulkDownload(ctx, chunkList, tempDirPath, string(s.StationID)+s.StartTime.Format("20060102150405")+"_"); err != nil {
+					if err := bulkDownload(
+						ctx,
+						chunkList,
+						tempDirPath,
+						string(s.StationID)+s.StartTime.Format("20060102150405")+"_",
+					); err != nil {
 						log.Error("failed to download chunks", "error", err)
 						return
 					}
