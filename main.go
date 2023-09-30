@@ -6,10 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"math"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"slices"
@@ -334,6 +336,54 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 					log.Debug("complete downloading chunks")
 
 					log.Info("finish fetching")
+
+					tempResourcesFile, err := os.CreateTemp(tempDirPath, "resources_*.txt")
+					if err != nil {
+						log.Error("failed to create resources file", "error", err)
+						return
+					}
+					defer func() {
+						_ = os.Remove(tempResourcesFile.Name())
+					}()
+					var aacFilePaths []string
+					if err := filepath.WalkDir(tempDirPath, func(path string, d fs.DirEntry, err error) error {
+						if err != nil {
+							log.Warn("failed to walk path", "path", path, "error", err)
+							return nil
+						}
+						if d.IsDir() {
+							return nil
+						}
+						if filepath.Ext(path) == ".aac" {
+							aacFilePaths = append(aacFilePaths, path)
+						}
+						return nil
+					}); err != nil {
+						log.Error("failed to walk tempDir", "error", err)
+						return
+					}
+					slices.Sort(aacFilePaths)
+
+					for _, aacFilePath := range aacFilePaths {
+						tempResourcesFile.WriteString("file '" + aacFilePath + "'\n")
+					}
+					tempResourcesFile.Close()
+
+					concatFilePath := filepath.Join(tempDirPath, "concat.aac")
+					cmd := exec.CommandContext(
+						ctx,
+						"ffmpeg",
+						"-f", "concat",
+						"-safe", "0",
+						"-y",
+						"-i", tempResourcesFile.Name(),
+						"-c", "copy",
+						concatFilePath,
+					)
+					if err := cmd.Run(); err != nil {
+						log.Error("failed to concat aac files", "error", err)
+						return
+					}
 				}(c, sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
 			case <-ctx.Done():
 				logger.Debug("stop fetchers")
