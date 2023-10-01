@@ -22,7 +22,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/go-cmp/cmp"
 	"github.com/lmittmann/tint"
-	"github.com/yyoshiki41/go-radiko"
+	goradiko "github.com/yyoshiki41/go-radiko"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
@@ -271,7 +271,7 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 	logger := slog.Default().With("job", "fetchers")
 	logger.Debug("start fetchers")
 
-	radikoClient, err := radiko.New("")
+	radikoClient, err := goradiko.New("")
 	if err != nil {
 		panic(fmt.Errorf("failed to create radiko client: %w", err))
 	}
@@ -315,7 +315,7 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 					}
 					log.Debug("got m3u8URI", "m3u8URI", m3u8URI)
 
-					chunkList, err := radiko.GetChunklistFromM3U8(m3u8URI)
+					chunkList, err := goradiko.GetChunklistFromM3U8(m3u8URI)
 					if err != nil {
 						log.Error("failed to get chunkList", "error", err)
 						return
