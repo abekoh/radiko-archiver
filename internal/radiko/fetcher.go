@@ -177,6 +177,7 @@ func download(ctx context.Context, url, outDirPath, filename string) error {
 
 func convert(ctx context.Context, s Schedule, outDirPath string, workingDirPath string) error {
 	logger := slog.Default().With("job", fmt.Sprintf("converter-%s-%s", s.StationID, s.StartTime.Format("20060102150405")))
+	logger.Info("start converting", "schedule", s)
 	tempResourcesFile, err := os.CreateTemp(workingDirPath, "resources_*.txt")
 	if err != nil {
 		return fmt.Errorf("failed to create resources file: %w", err)
@@ -187,7 +188,6 @@ func convert(ctx context.Context, s Schedule, outDirPath string, workingDirPath 
 	var aacFilePaths []string
 	if err := filepath.WalkDir(workingDirPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			logger.Warn("failed to walk path", "path", path, "error", err)
 			return nil
 		}
 		if d.IsDir() {
@@ -221,5 +221,6 @@ func convert(ctx context.Context, s Schedule, outDirPath string, workingDirPath 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to concat aac files: %w", err)
 	}
+	logger.Debug("complete concat aac files")
 	return nil
 }

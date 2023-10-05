@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log/slog"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -28,18 +29,24 @@ func init() {
 }
 
 func main() {
+	logger := slog.Default().With("job", "main")
+
 	var rulesPath, outDirPath string
 	flag.StringVar(&rulesPath, "rules", "rules.toml", "rules config path")
 	flag.StringVar(&outDirPath, "out", "out", "output directory path")
 	flag.Parse()
 
 	if err := os.MkdirAll(outDirPath, 0755); err != nil {
-		panic(err)
+		logger.Error("failed to create output directory", "error", err)
+		os.Exit(1)
+	}
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		logger.Error("ffmpeg command is not available", "error", err)
+		os.Exit(1)
 	}
 
 	radiko.Run(context.Background(), rulesPath, outDirPath)
-
-	logger := slog.Default().With("job", "main")
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
