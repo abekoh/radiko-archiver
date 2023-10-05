@@ -12,14 +12,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"time"
 
 	goradiko "github.com/yyoshiki41/go-radiko"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
-func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath string) {
+func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath string, toDone chan<- struct{}) {
 	logger := slog.Default().With("job", "fetchers")
 	logger.Debug("start fetchers")
 
@@ -38,20 +37,25 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 			case sche := <-toFetcher:
 				c, cancel := context.WithTimeout(ctx, fetchTimeout)
 				defer cancel()
-				go func(ctx context.Context, s Schedule, log *slog.Logger) {
+				go func(ctx context.Context, s Schedule) {
+					log := slog.Default().With("job", fmt.Sprintf("fetcher-%s-%s", s.StationID, s.StartTime.Format("20060102150405")))
+
 					workingDirPath := os.TempDir()
 
-					if err := fetch(ctx, s, radikoClient, outDirPath, workingDirPath); err != nil {
+					if err := fetch(ctx, log, s, radikoClient, outDirPath, workingDirPath); err != nil {
 						log.Error("failed to fetch", "error", err)
 						return
 					}
 
-					if err := convert(ctx, s, outDirPath, workingDirPath); err != nil {
+					if err := convert(ctx, log, s, outDirPath, workingDirPath); err != nil {
 						log.Error("failed to convert", "error", err)
 						return
 					}
 
-				}(c, sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
+					if toDone != nil {
+						toDone <- struct{}{}
+					}
+				}(c, sche)
 			case <-ctx.Done():
 				logger.Debug("stop fetchers")
 				return
@@ -65,9 +69,7 @@ const (
 	maxConcurrents = 64
 )
 
-func fetch(ctx context.Context, s Schedule, radikoClient *goradiko.Client, outDirPath string, workingDirPath string) error {
-	logger := slog.Default().With("job", fmt.Sprintf("fetcher-%s-%s", s.StationID, s.StartTime.Format("20060102150405")))
-
+func fetch(ctx context.Context, logger *slog.Logger, s Schedule, radikoClient *goradiko.Client, outDirPath string, workingDirPath string) error {
 	logger.Info("start fetching", "schedule", s)
 	pg, err := radikoClient.GetProgramByStartTime(ctx, string(s.StationID), s.StartTime)
 	if err != nil {
@@ -175,8 +177,7 @@ func download(ctx context.Context, url, outDirPath, filename string) error {
 	return err
 }
 
-func convert(ctx context.Context, s Schedule, outDirPath string, workingDirPath string) error {
-	logger := slog.Default().With("job", fmt.Sprintf("converter-%s-%s", s.StationID, s.StartTime.Format("20060102150405")))
+func convert(ctx context.Context, logger *slog.Logger, s Schedule, outDirPath string, workingDirPath string) error {
 	logger.Info("start converting", "schedule", s)
 	tempResourcesFile, err := os.CreateTemp(workingDirPath, "resources_*.txt")
 	if err != nil {

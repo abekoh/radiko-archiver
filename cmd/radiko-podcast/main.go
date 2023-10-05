@@ -31,9 +31,10 @@ func init() {
 func main() {
 	logger := slog.Default().With("job", "main")
 
-	var rulesPath, outDirPath string
+	var rulesPath, outDirPath, url string
 	flag.StringVar(&rulesPath, "rules", "rules.toml", "rules config path")
 	flag.StringVar(&outDirPath, "out", "out", "output directory path")
+	flag.StringVar(&url, "url", "", "radiko channel url")
 	flag.Parse()
 
 	if err := os.MkdirAll(outDirPath, 0755); err != nil {
@@ -46,7 +47,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	radiko.Run(context.Background(), rulesPath, outDirPath)
+	if url != "" {
+
+	}
+
+	radiko.RunScheduler(context.Background(), rulesPath, outDirPath)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)

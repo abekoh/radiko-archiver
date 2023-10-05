@@ -2,9 +2,13 @@ package radiko
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"regexp"
+	"time"
 )
 
-func Run(ctx context.Context, rulesPath, outDirPath string) {
+func RunScheduler(ctx context.Context, rulesPath, outDirPath string) {
 	toDispatcher := make(chan []Schedule)
 	toFetcher := make(chan Schedule)
 
@@ -13,5 +17,51 @@ func Run(ctx context.Context, rulesPath, outDirPath string) {
 
 	RunPlanner(ctx, toDispatcher, rulesPath)
 	RunDispatcher(ctx, toDispatcher, toFetcher)
-	RunFetchers(ctx, toFetcher, outDirPath)
+	RunFetchers(ctx, toFetcher, outDirPath, nil)
+}
+
+func RunFromURL(ctx context.Context, url, outDirPath string) {
+	logger := slog.Default().With("job", "run-from-url")
+	toFetcher := make(chan Schedule)
+	toDone := make(chan struct{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sche, err := parseURL(url)
+	if err != nil {
+		logger.Error("failed to parse URL", "error", err)
+		return
+	}
+	logger.Info("start", "schedule", sche)
+	RunFetchers(ctx, toFetcher, outDirPath, toDone)
+	toFetcher <- sche
+	<-toDone
+	logger.Info("done")
+}
+
+func parseURL(url string) (Schedule, error) {
+	u, err := url.Parse(inputURL)
+	if err != nil {
+		return Schedule{}, err
+	}
+
+	re := regexp.MustCompile(`/ts/([^/]+)/([^/]+)`)
+	matches := re.FindStringSubmatch(u.Path)
+	if len(matches) < 3 {
+		return Schedule{}, fmt.Errorf("invalid URL format")
+	}
+
+	stationID := matches[1]
+	startTimeStr := matches[2]
+
+	startTime, err := time.Parse("20060102150405", startTimeStr)
+	if err != nil {
+		return Schedule{}, err
+	}
+	return Schedule{
+		RuleName:  "FromURL",
+		StationID: StationID(stationID),
+		StartTime: startTime,
+	}, nil
 }
