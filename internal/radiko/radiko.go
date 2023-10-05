@@ -23,7 +23,7 @@ func RunScheduler(ctx context.Context, rulesPath, outDirPath string) {
 func RunFromURL(ctx context.Context, tsURL, outDirPath string) {
 	logger := slog.Default().With("job", "run-from-url")
 	toFetcher := make(chan Schedule)
-	toDone := make(chan struct{})
+	toDone := make(chan bool)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -36,8 +36,11 @@ func RunFromURL(ctx context.Context, tsURL, outDirPath string) {
 	logger.Info("start", "schedule", sche)
 	RunFetchers(ctx, toFetcher, outDirPath, toDone)
 	toFetcher <- sche
-	<-toDone
-	logger.Info("done")
+	if <-toDone {
+		logger.Info("done")
+	} else {
+		logger.Error("failed")
+	}
 }
 
 func parseURL(tsURL string) (Schedule, error) {

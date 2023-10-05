@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath string, toDone chan<- struct{}) {
+func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath string, toDone chan<- bool) {
 	logger := slog.Default().With("job", "fetchers")
 	logger.Debug("start fetchers")
 
@@ -40,20 +40,27 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 				go func(ctx context.Context, s Schedule) {
 					log := slog.Default().With("job", fmt.Sprintf("fetcher-%s-%s", s.StationID, s.StartTime.Format("20060102150405")))
 
-					workingDirPath := os.TempDir()
+					workingDirPath, err := os.MkdirTemp("", "radiko-podcast-*")
+					if err != nil {
+						log.Error("failed to create temp dir", "error", err)
+						toDone <- false
+						return
+					}
 
-					if err := fetch(ctx, log, s, radikoClient, outDirPath, workingDirPath); err != nil {
+					pg, err := fetch(ctx, log, s, radikoClient, outDirPath, workingDirPath)
+					if err != nil {
 						log.Error("failed to fetch", "error", err)
-						toDone <- struct{}{}
+						toDone <- false
 						return
 					}
 
-					if err := convert(ctx, log, s, outDirPath, workingDirPath); err != nil {
+					if err := convert(ctx, log, s, pg, outDirPath, workingDirPath); err != nil {
 						log.Error("failed to convert", "error", err)
-						toDone <- struct{}{}
+						toDone <- false
 						return
 					}
-					toDone <- struct{}{}
+
+					toDone <- true
 				}(c, sche)
 			case <-ctx.Done():
 				logger.Debug("stop fetchers")
@@ -68,35 +75,35 @@ const (
 	maxConcurrents = 64
 )
 
-func fetch(ctx context.Context, logger *slog.Logger, s Schedule, radikoClient *goradiko.Client, outDirPath string, workingDirPath string) error {
+func fetch(ctx context.Context, logger *slog.Logger, s Schedule, radikoClient *goradiko.Client, outDirPath string, workingDirPath string) (*goradiko.Prog, error) {
 	logger.Info("start fetching", "schedule", s)
 	pg, err := radikoClient.GetProgramByStartTime(ctx, string(s.StationID), s.StartTime)
 	if err != nil {
-		return fmt.Errorf("failed to fetch program: %w", err)
+		return nil, fmt.Errorf("failed to fetch program: %w", err)
 	}
 	logger.Debug("get program", "program", pg)
 
 	xmlFile, err := os.Create(fmt.Sprintf("%s/%s_%s_%s.xml", outDirPath, pg.Ft, s.StationID, pg.Title))
 	if err != nil {
 		logger.Error("failed to create file", "error", err)
-		return fmt.Errorf("failed to create file: %w", err)
+		return nil, fmt.Errorf("failed to create file: %w", err)
 	}
 	defer xmlFile.Close()
 	xmlEncoder := xml.NewEncoder(xmlFile)
 	xmlEncoder.Indent("", "  ")
 	if err := xmlEncoder.Encode(pg); err != nil {
-		return fmt.Errorf("failed to encode xml: %w", err)
+		return nil, fmt.Errorf("failed to encode xml: %w", err)
 	}
 
 	m3u8URI, err := radikoClient.TimeshiftPlaylistM3U8(ctx, string(s.StationID), s.StartTime)
 	if err != nil {
-		return fmt.Errorf("failed to get m3u8URI: %w", err)
+		return nil, fmt.Errorf("failed to get m3u8URI: %w", err)
 	}
 	logger.Debug("got m3u8URI", "m3u8URI", m3u8URI)
 
 	chunkList, err := goradiko.GetChunklistFromM3U8(m3u8URI)
 	if err != nil {
-		return fmt.Errorf("failed to get chunkList: %w", err)
+		return nil, fmt.Errorf("failed to get chunkList: %w", err)
 	}
 	logger.Debug("got chunkList", "chunkList[:5]", chunkList[:5], "len()", len(chunkList))
 
@@ -107,13 +114,13 @@ func fetch(ctx context.Context, logger *slog.Logger, s Schedule, radikoClient *g
 		workingDirPath,
 		string(s.StationID)+s.StartTime.Format("20060102150405")+"_",
 	); err != nil {
-		return fmt.Errorf("failed to download chunks: %w", err)
+		return nil, fmt.Errorf("failed to download chunks: %w", err)
 	}
 	logger.Debug("complete downloading chunks")
 
 	logger.Info("finish fetching")
 
-	return nil
+	return pg, nil
 }
 
 func bulkDownload(ctx context.Context, urls []string, outDirPath, fileNamePrefix string) error {
@@ -176,8 +183,8 @@ func download(ctx context.Context, url, outDirPath, filename string) error {
 	return err
 }
 
-func convert(ctx context.Context, logger *slog.Logger, s Schedule, outDirPath string, workingDirPath string) error {
-	logger.Info("start converting", "schedule", s)
+func convert(ctx context.Context, logger *slog.Logger, s Schedule, pg *goradiko.Prog, outDirPath string, workingDirPath string) error {
+	logger.Info("start converting", "program", pg)
 	tempResourcesFile, err := os.CreateTemp(workingDirPath, "resources_*.txt")
 	if err != nil {
 		return fmt.Errorf("failed to create resources file: %w", err)
@@ -207,7 +214,7 @@ func convert(ctx context.Context, logger *slog.Logger, s Schedule, outDirPath st
 	}
 	tempResourcesFile.Close()
 
-	concatFilePath := filepath.Join(outDirPath, fmt.Sprintf("%s_%s.aac", s.StationID, s.StartTime.Format("20060102150405")))
+	concatFilePath := filepath.Join(outDirPath, fmt.Sprintf("%s_%s_%s.aac", pg.Ft, s.StationID, pg.Title))
 	cmd := exec.CommandContext(
 		ctx,
 		"ffmpeg",
