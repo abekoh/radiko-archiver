@@ -58,5 +58,6 @@ func parseURL(tsURL string) (Schedule, error) {
 		RuleName:  "FromURL",
 		StationID: StationID(stationID),
 		StartTime: startTime,
+		FetchTime: time.Now(),
 	}, nil
 }
