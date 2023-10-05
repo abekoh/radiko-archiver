@@ -33,6 +33,10 @@ func main() {
 	flag.StringVar(&outDirPath, "out", "out", "output directory path")
 	flag.Parse()
 
+	if err := os.MkdirAll(outDirPath, 0755); err != nil {
+		panic(err)
+	}
+
 	radiko.Run(context.Background(), rulesPath, outDirPath)
 
 	logger := slog.Default().With("job", "main")
