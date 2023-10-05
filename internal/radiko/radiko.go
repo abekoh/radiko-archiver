@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"regexp"
 	"time"
 )
@@ -20,7 +21,7 @@ func RunScheduler(ctx context.Context, rulesPath, outDirPath string) {
 	RunFetchers(ctx, toFetcher, outDirPath, nil)
 }
 
-func RunFromURL(ctx context.Context, url, outDirPath string) {
+func RunFromURL(ctx context.Context, tsURL, outDirPath string) {
 	logger := slog.Default().With("job", "run-from-url")
 	toFetcher := make(chan Schedule)
 	toDone := make(chan struct{})
@@ -28,7 +29,7 @@ func RunFromURL(ctx context.Context, url, outDirPath string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sche, err := parseURL(url)
+	sche, err := parseURL(tsURL)
 	if err != nil {
 		logger.Error("failed to parse URL", "error", err)
 		return
@@ -40,8 +41,8 @@ func RunFromURL(ctx context.Context, url, outDirPath string) {
 	logger.Info("done")
 }
 
-func parseURL(url string) (Schedule, error) {
-	u, err := url.Parse(inputURL)
+func parseURL(tsURL string) (Schedule, error) {
+	u, err := url.Parse(tsURL)
 	if err != nil {
 		return Schedule{}, err
 	}
