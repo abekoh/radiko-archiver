@@ -48,7 +48,8 @@ func main() {
 	}
 
 	if url != "" {
-
+		radiko.RunFromURL(context.Background(), url, outDirPath)
+		return
 	}
 
 	radiko.RunScheduler(context.Background(), rulesPath, outDirPath)
