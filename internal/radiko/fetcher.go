@@ -44,17 +44,16 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 
 					if err := fetch(ctx, log, s, radikoClient, outDirPath, workingDirPath); err != nil {
 						log.Error("failed to fetch", "error", err)
+						toDone <- struct{}{}
 						return
 					}
 
 					if err := convert(ctx, log, s, outDirPath, workingDirPath); err != nil {
 						log.Error("failed to convert", "error", err)
+						toDone <- struct{}{}
 						return
 					}
-
-					if toDone != nil {
-						toDone <- struct{}{}
-					}
+					toDone <- struct{}{}
 				}(c, sche)
 			case <-ctx.Done():
 				logger.Debug("stop fetchers")
