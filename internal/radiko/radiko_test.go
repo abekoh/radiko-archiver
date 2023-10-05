@@ -18,11 +18,11 @@ func TestRunFetchers(t *testing.T) {
 	toFetcher <- Schedule{
 		RuleName:  "オードリーのオールナイトニッポン",
 		StationID: LFR,
-		StartTime: time.Date(2023, 9, 24, 1, 0, 0, 0, JST),
+		StartTime: time.Date(2023, 10, 1, 1, 0, 0, 0, JST),
 		Duration:  2 * time.Hour,
-		FetchTime: time.Date(2023, 9, 24, 7, 0, 0, 0, JST),
+		FetchTime: time.Date(2023, 10, 1, 7, 0, 0, 0, JST),
 	}
-	time.Sleep(3 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	xmlPath := filepath.Join(tmpDir, "20230924010000_LFR_オードリーのオールナイトニッポン.xml")
 	if _, err := os.Stat(xmlPath); errors.Is(err, os.ErrNotExist) {

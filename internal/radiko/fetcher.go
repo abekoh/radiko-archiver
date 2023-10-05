@@ -39,103 +39,18 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 				c, cancel := context.WithTimeout(ctx, fetchTimeout)
 				defer cancel()
 				go func(ctx context.Context, s Schedule, log *slog.Logger) {
-					log.Info("start fetching", "schedule", s)
-					pg, err := radikoClient.GetProgramByStartTime(ctx, string(s.StationID), s.StartTime)
-					if err != nil {
-						log.Error("failed to fetch program", "error", err)
-						return
-					}
-					log.Debug("get program", "program", pg)
+					workingDirPath := os.TempDir()
 
-					xmlFile, err := os.Create(fmt.Sprintf("%s/%s_%s_%s.xml", outDirPath, pg.Ft, s.StationID, pg.Title))
-					if err != nil {
-						log.Error("failed to create file", "error", err)
-						return
-					}
-					defer xmlFile.Close()
-					xmlEncoder := xml.NewEncoder(xmlFile)
-					xmlEncoder.Indent("", "  ")
-					if err := xmlEncoder.Encode(pg); err != nil {
-						log.Error("failed to encode xml", "error", err)
+					if err := fetch(ctx, s, radikoClient, outDirPath, workingDirPath); err != nil {
+						log.Error("failed to fetch", "error", err)
 						return
 					}
 
-					m3u8URI, err := radikoClient.TimeshiftPlaylistM3U8(ctx, string(s.StationID), s.StartTime)
-					if err != nil {
-						log.Error("failed to get m3u8URI", "error", err)
+					if err := convert(ctx, s, outDirPath, workingDirPath); err != nil {
+						log.Error("failed to convert", "error", err)
 						return
 					}
-					log.Debug("got m3u8URI", "m3u8URI", m3u8URI)
 
-					chunkList, err := goradiko.GetChunklistFromM3U8(m3u8URI)
-					if err != nil {
-						log.Error("failed to get chunkList", "error", err)
-						return
-					}
-					log.Debug("got chunkList", "chunkList[:5]", chunkList[:5], "len()", len(chunkList))
-
-					tempDirPath := os.TempDir()
-					log.Debug("tempDirPath", "tempDirPath", tempDirPath)
-					if err := bulkDownload(
-						ctx,
-						chunkList,
-						tempDirPath,
-						string(s.StationID)+s.StartTime.Format("20060102150405")+"_",
-					); err != nil {
-						log.Error("failed to download chunks", "error", err)
-						return
-					}
-					log.Debug("complete downloading chunks")
-
-					log.Info("finish fetching")
-
-					tempResourcesFile, err := os.CreateTemp(tempDirPath, "resources_*.txt")
-					if err != nil {
-						log.Error("failed to create resources file", "error", err)
-						return
-					}
-					defer func() {
-						_ = os.Remove(tempResourcesFile.Name())
-					}()
-					var aacFilePaths []string
-					if err := filepath.WalkDir(tempDirPath, func(path string, d fs.DirEntry, err error) error {
-						if err != nil {
-							log.Warn("failed to walk path", "path", path, "error", err)
-							return nil
-						}
-						if d.IsDir() {
-							return nil
-						}
-						if filepath.Ext(path) == ".aac" {
-							aacFilePaths = append(aacFilePaths, path)
-						}
-						return nil
-					}); err != nil {
-						log.Error("failed to walk tempDir", "error", err)
-						return
-					}
-					slices.Sort(aacFilePaths)
-
-					for _, aacFilePath := range aacFilePaths {
-						tempResourcesFile.WriteString("file '" + aacFilePath + "'\n")
-					}
-					tempResourcesFile.Close()
-
-					concatFilePath := filepath.Join(tempDirPath, "concat.aac")
-					cmd := exec.CommandContext(
-						ctx,
-						"ffmpeg",
-						"-f", "concat",
-						"-safe", "0",
-						"-y",
-						"-i", tempResourcesFile.Name(),
-						"-c", "copy",
-						concatFilePath,
-					)
-					if err := cmd.Run(); err != nil {
-						log.Error("failed to concat aac files", "error", err)
-						return
-					}
 				}(c, sche, logger.With("job", "fetcher-"+time.Now().Format("20060102150405")))
 			case <-ctx.Done():
 				logger.Debug("stop fetchers")
@@ -149,6 +64,56 @@ const (
 	maxAttempts    = 3
 	maxConcurrents = 64
 )
+
+func fetch(ctx context.Context, s Schedule, radikoClient *goradiko.Client, outDirPath string, workingDirPath string) error {
+	logger := slog.Default().With("job", fmt.Sprintf("fetcher-%s-%s", s.StationID, s.StartTime.Format("20060102150405")))
+
+	logger.Info("start fetching", "schedule", s)
+	pg, err := radikoClient.GetProgramByStartTime(ctx, string(s.StationID), s.StartTime)
+	if err != nil {
+		return fmt.Errorf("failed to fetch program: %w", err)
+	}
+	logger.Debug("get program", "program", pg)
+
+	xmlFile, err := os.Create(fmt.Sprintf("%s/%s_%s_%s.xml", outDirPath, pg.Ft, s.StationID, pg.Title))
+	if err != nil {
+		logger.Error("failed to create file", "error", err)
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer xmlFile.Close()
+	xmlEncoder := xml.NewEncoder(xmlFile)
+	xmlEncoder.Indent("", "  ")
+	if err := xmlEncoder.Encode(pg); err != nil {
+		return fmt.Errorf("failed to encode xml: %w", err)
+	}
+
+	m3u8URI, err := radikoClient.TimeshiftPlaylistM3U8(ctx, string(s.StationID), s.StartTime)
+	if err != nil {
+		return fmt.Errorf("failed to get m3u8URI: %w", err)
+	}
+	logger.Debug("got m3u8URI", "m3u8URI", m3u8URI)
+
+	chunkList, err := goradiko.GetChunklistFromM3U8(m3u8URI)
+	if err != nil {
+		return fmt.Errorf("failed to get chunkList: %w", err)
+	}
+	logger.Debug("got chunkList", "chunkList[:5]", chunkList[:5], "len()", len(chunkList))
+
+	logger.Debug("workingDirPath", "workingDirPath", workingDirPath)
+	if err := bulkDownload(
+		ctx,
+		chunkList,
+		workingDirPath,
+		string(s.StationID)+s.StartTime.Format("20060102150405")+"_",
+	); err != nil {
+		return fmt.Errorf("failed to download chunks: %w", err)
+	}
+	logger.Debug("complete downloading chunks")
+
+	logger.Info("finish fetching")
+
+	return nil
+}
 
 func bulkDownload(ctx context.Context, urls []string, outDirPath, fileNamePrefix string) error {
 	sem := semaphore.NewWeighted(maxConcurrents)
@@ -208,4 +173,53 @@ func download(ctx context.Context, url, outDirPath, filename string) error {
 		return err
 	}
 	return err
+}
+
+func convert(ctx context.Context, s Schedule, outDirPath string, workingDirPath string) error {
+	logger := slog.Default().With("job", fmt.Sprintf("converter-%s-%s", s.StationID, s.StartTime.Format("20060102150405")))
+	tempResourcesFile, err := os.CreateTemp(workingDirPath, "resources_*.txt")
+	if err != nil {
+		return fmt.Errorf("failed to create resources file: %w", err)
+	}
+	defer func() {
+		_ = os.Remove(tempResourcesFile.Name())
+	}()
+	var aacFilePaths []string
+	if err := filepath.WalkDir(workingDirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			logger.Warn("failed to walk path", "path", path, "error", err)
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) == ".aac" {
+			aacFilePaths = append(aacFilePaths, path)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to walk tempDir: %w", err)
+	}
+	slices.Sort(aacFilePaths)
+
+	for _, aacFilePath := range aacFilePaths {
+		tempResourcesFile.WriteString("file '" + aacFilePath + "'\n")
+	}
+	tempResourcesFile.Close()
+
+	concatFilePath := filepath.Join(outDirPath, fmt.Sprintf("%s_%s.aac", s.StationID, s.StartTime.Format("20060102150405")))
+	cmd := exec.CommandContext(
+		ctx,
+		"ffmpeg",
+		"-f", "concat",
+		"-safe", "0",
+		"-y",
+		"-i", tempResourcesFile.Name(),
+		"-c", "copy",
+		concatFilePath,
+	)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to concat aac files: %w", err)
+	}
+	return nil
 }
