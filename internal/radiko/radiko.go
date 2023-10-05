@@ -50,7 +50,7 @@ func parseURL(tsURL string) (Schedule, error) {
 	stationID := matches[1]
 	startTimeStr := matches[2]
 
-	startTime, err := time.Parse("20060102150405", startTimeStr)
+	startTime, err := time.ParseInLocation("20060102150405", startTimeStr, JST)
 	if err != nil {
 		return Schedule{}, err
 	}
