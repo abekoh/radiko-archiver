@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"regexp"
 	"time"
 )
@@ -42,13 +41,8 @@ func RunFromURL(ctx context.Context, tsURL, outDirPath string) {
 }
 
 func parseURL(tsURL string) (Schedule, error) {
-	u, err := url.Parse(tsURL)
-	if err != nil {
-		return Schedule{}, err
-	}
-
-	re := regexp.MustCompile(`/ts/([^/]+)/([^/]+)`)
-	matches := re.FindStringSubmatch(u.Path)
+	re := regexp.MustCompile(`\/ts\/([A-Z]+)\/([0-9]+)$`)
+	matches := re.FindStringSubmatch(tsURL)
 	if len(matches) < 3 {
 		return Schedule{}, fmt.Errorf("invalid URL format")
 	}
