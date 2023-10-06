@@ -168,9 +168,8 @@ func getRSS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "RSS is not ready", http.StatusServiceUnavailable)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
 	w.Header().Add("Content-Type", "application/xml")
-
+	w.WriteHeader(http.StatusOK)
 	enc := xml.NewEncoder(w)
 	enc.Indent("", "  ")
 	if err := enc.Encode(rss); err != nil {
