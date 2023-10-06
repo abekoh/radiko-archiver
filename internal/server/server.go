@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/xml"
 	"fmt"
@@ -11,9 +12,10 @@ import (
 	"sync"
 	"time"
 
+	"log/slog"
+
 	"github.com/fsnotify/fsnotify"
 	goradiko "github.com/yyoshiki41/go-radiko"
-	"log/slog"
 )
 
 var (
@@ -117,14 +119,14 @@ func generateRSS(outDirPath string) (*RSS, error) {
 			return fmt.Errorf("failed to parse end time: %w", err)
 		}
 		channel.Item = append(channel.Item, Item{
-			Title:       prog.Title,
-			Description: prog.Info,
-			PubDate:     startTime.Format(time.RFC1123Z),
-			Link:        prog.URL,
-			GUID:        GUID{},
-			Author:      prog.Pfm,
-			Subtitle:    prog.SubTitle,
-			Duration:    formatDuration(endTime.Sub(startTime)),
+			Title: prog.Title,
+			// Description: prog.Info,
+			PubDate:  startTime.Format(time.RFC1123Z),
+			Link:     prog.URL,
+			GUID:     GUID{},
+			Author:   prog.Pfm,
+			Subtitle: prog.SubTitle,
+			Duration: formatDuration(endTime.Sub(startTime)),
 		})
 		return nil
 	}); err != nil {
@@ -138,7 +140,12 @@ func generateRSS(outDirPath string) (*RSS, error) {
 	rs := &RSS{
 		Channel: channels,
 	}
-	logger.Debug("complete generating RSS", "rss", rs)
+	var buf bytes.Buffer
+	enc := xml.NewEncoder(&buf)
+	if err := enc.Encode(rs); err != nil {
+		return nil, fmt.Errorf("failed to encode xml: %w", err)
+	}
+	logger.Debug("generated RSS", "rss", buf.String())
 	return rs, nil
 }
 

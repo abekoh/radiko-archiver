@@ -35,31 +35,31 @@ type Channel struct {
 }
 
 type AtomLink struct {
-	Href string `xml:"href,attr,omitempty"`
-	Rel  string `xml:"rel,attr,omitempty"`
-	Type string `xml:"type,attr,omitempty"`
+	Href string `xml:"href,attr"`
+	Rel  string `xml:"rel,attr"`
+	Type string `xml:"type,attr"`
 }
 
 type MediaThumbnail struct {
-	URL string `xml:"url,attr,omitempty"`
+	URL string `xml:"url,attr"`
 }
 
 type MediaCategory struct {
-	Scheme  string `xml:"scheme,attr,omitempty"`
-	Content string `xml:",chardata,omitempty"`
+	Scheme  string `xml:"scheme,attr"`
+	Content string `xml:",chardata"`
 }
 
 type ITunesImage struct {
-	Href string `xml:"href,attr,omitempty"`
+	Href string `xml:"href,attr"`
 }
 
 type ITunesCategory struct {
-	Text string `xml:"text,attr,omitempty"`
+	Text string `xml:"text,attr"`
 }
 
 type ITunesOwner struct {
-	Name  string `xml:"http://www.itunes.com/dtds/podcast-1.0.dtd name,omitempty"`
-	Email string `xml:"http://www.itunes.com/dtds/podcast-1.0.dtd email,omitempty"`
+	Name  string `xml:"http://www.itunes.com/dtds/podcast-1.0.dtd name"`
+	Email string `xml:"http://www.itunes.com/dtds/podcast-1.0.dtd email"`
 }
 
 type Item struct {
@@ -78,17 +78,17 @@ type Item struct {
 }
 
 type GUID struct {
-	IsPermaLink bool   `xml:"isPermaLink,attr,omitempty"`
-	Content     string `xml:",chardata,omitempty"`
+	IsPermaLink bool   `xml:"isPermaLink,attr"`
+	Content     string `xml:",chardata"`
 }
 
 type Contributor struct {
-	Name string `xml:"http://www.w3.org/2005/Atom name,omitempty"`
-	URI  string `xml:"http://www.w3.org/2005/Atom uri,omitempty"`
+	Name string `xml:"http://www.w3.org/2005/Atom name"`
+	URI  string `xml:"http://www.w3.org/2005/Atom uri"`
 }
 
 type Enclosure struct {
-	URL    string `xml:"url,attr,omitempty"`
-	Type   string `xml:"type,attr,omitempty"`
-	Length int64  `xml:"length,attr,omitempty"`
+	URL    string `xml:"url,attr"`
+	Type   string `xml:"type,attr"`
+	Length int64  `xml:"length,attr"`
 }
