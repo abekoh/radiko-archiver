@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"log/slog"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/gorilla/mux"
 	goradiko "github.com/yyoshiki41/go-radiko"
 )
 
@@ -28,7 +30,10 @@ func RunServer(ctx context.Context, outDirPath string) {
 		updateRSS(ctx, outDirPath)
 	}()
 	go func() {
-		http.HandleFunc("/", getRSS)
+		r := mux.NewRouter()
+		r.HandleFunc("/", getRSS)
+		r.HandleFunc("/assets/{filename}", downloadAsset(outDirPath))
+		http.Handle("/", r)
 		http.ListenAndServe(":8080", nil)
 	}()
 }
@@ -166,5 +171,17 @@ func getRSS(w http.ResponseWriter, r *http.Request) {
 	enc.Indent("", "  ")
 	if err := enc.Encode(rss); err != nil {
 		http.Error(w, "Failed to encode XML", http.StatusInternalServerError)
+	}
+}
+
+func downloadAsset(outDirPath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		filename := vars["filename"]
+		if !strings.HasSuffix(filename, ".aac") {
+			http.Error(w, "Not Found", http.StatusNotFound)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(outDirPath, filename))
 	}
 }
