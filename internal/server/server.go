@@ -108,7 +108,6 @@ func generateRSS(outDirPath string) (*RSS, error) {
 				Language: "ja",
 				Item:     []Item{},
 			}
-			channelMap[prog.Title] = channel
 		}
 		startTime, err := time.ParseInLocation("20060102150405", prog.Ft, JST)
 		if err != nil {
@@ -128,6 +127,7 @@ func generateRSS(outDirPath string) (*RSS, error) {
 			Subtitle: prog.SubTitle,
 			Duration: formatDuration(endTime.Sub(startTime)),
 		})
+		channelMap[prog.Title] = channel
 		return nil
 	}); err != nil {
 		return nil, fmt.Errorf("failed to walk: %w", err)
@@ -138,6 +138,11 @@ func generateRSS(outDirPath string) (*RSS, error) {
 		channels = append(channels, channel)
 	}
 	rs := &RSS{
+		Version: "2.0",
+		Atom:    "http://www.w3.org/2005/Atom",
+		Itunes:  "http://www.itunes.com/dtds/podcast-1.0.dtd",
+		Media:   "http://search.yahoo.com/mrss/",
+		DC:      "http://purl.org/dc/elements/1.1/",
 		Channel: channels,
 	}
 	var buf bytes.Buffer
