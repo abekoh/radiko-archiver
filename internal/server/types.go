@@ -48,7 +48,7 @@ type Item struct {
 	Explicit    string    `xml:"itunes:explicit,omitempty"`
 	Subtitle    string    `xml:"itunes:subtitle,omitempty"`
 	Duration    string    `xml:"itunes:duration,omitempty"`
-	Enclosure   Enclosure `xml:"enclosure,omitempty"`
+	Enclosure   Enclosure `xml:"enclosure"`
 
 	PubDateTime time.Time `xml:"-"`
 }

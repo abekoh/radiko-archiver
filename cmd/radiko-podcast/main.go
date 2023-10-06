@@ -32,9 +32,10 @@ func init() {
 func main() {
 	logger := slog.Default().With("job", "main")
 
-	var rulesPath, outDirPath, url string
+	var rulesPath, outDirPath, url, baseURL string
 	flag.StringVar(&rulesPath, "rules", "rules.toml", "rules config path")
 	flag.StringVar(&outDirPath, "out", "out", "output directory path")
+	flag.StringVar(&baseURL, "baseurl", "http://localhost:8080", "base url")
 	flag.StringVar(&url, "url", "", "radiko channel url")
 	flag.Parse()
 
@@ -56,7 +57,7 @@ func main() {
 	ctx := context.Background()
 
 	radiko.RunScheduler(ctx, rulesPath, outDirPath)
-	server.RunServer(ctx, outDirPath)
+	server.RunServer(ctx, outDirPath, baseURL)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)

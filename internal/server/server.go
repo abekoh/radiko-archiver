@@ -26,9 +26,9 @@ var (
 	rssMu sync.RWMutex
 )
 
-func RunServer(ctx context.Context, outDirPath string) {
+func RunServer(ctx context.Context, outDirPath string, baseURL string) {
 	go func() {
-		updateRSS(ctx, outDirPath)
+		updateRSS(ctx, outDirPath, baseURL)
 	}()
 	go func() {
 		r := mux.NewRouter()
@@ -39,7 +39,7 @@ func RunServer(ctx context.Context, outDirPath string) {
 	}()
 }
 
-func updateRSS(ctx context.Context, outDirPath string) {
+func updateRSS(ctx context.Context, outDirPath, baseURL string) {
 	logger := slog.Default().With("job", "updateRSS")
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -49,7 +49,7 @@ func updateRSS(ctx context.Context, outDirPath string) {
 	if err := watcher.Add(outDirPath); err != nil {
 		panic(fmt.Errorf("failed to add watcher: %w", err))
 	}
-	rs, err := generateRSS(outDirPath)
+	rs, err := generateRSS(outDirPath, baseURL)
 	if err != nil {
 		panic(fmt.Errorf("failed to generate RSS: %w", err))
 	}
@@ -60,7 +60,7 @@ func updateRSS(ctx context.Context, outDirPath string) {
 	for {
 		select {
 		case <-watcher.Events:
-			rs, err := generateRSS(outDirPath)
+			rs, err := generateRSS(outDirPath, baseURL)
 			if err != nil {
 				logger.Error("failed to generate RSS", "error", err)
 				continue
@@ -76,7 +76,7 @@ func updateRSS(ctx context.Context, outDirPath string) {
 	}
 }
 
-func generateRSS(outDirPath string) (*RSS, error) {
+func generateRSS(outDirPath, baseURL string) (*RSS, error) {
 	logger := slog.Default().With("job", "generateRSS")
 	var items []Item
 	if err := filepath.WalkDir(outDirPath, func(path string, d fs.DirEntry, err error) error {
@@ -90,9 +90,11 @@ func generateRSS(outDirPath string) (*RSS, error) {
 			return nil
 		}
 		aacFilePath := path[:len(path)-4] + ".aac"
-		if _, err := os.Stat(aacFilePath); os.IsNotExist(err) {
+		aacFileStat, err := os.Stat(aacFilePath)
+		if os.IsNotExist(err) {
 			return fmt.Errorf("failed to find aac file: %w", err)
 		}
+		aacFileSize := aacFileStat.Size()
 
 		xmlFile, err := os.ReadFile(path)
 		if err != nil {
@@ -116,10 +118,14 @@ func generateRSS(outDirPath string) (*RSS, error) {
 			Description: "<![CDATA[ " + prog.Info + "]]>",
 			PubDate:     startTime.Format(time.RFC1123Z),
 			Link:        prog.URL,
-			GUID:        GUID{},
 			Author:      prog.Pfm,
 			Subtitle:    prog.SubTitle,
 			Duration:    formatDuration(endTime.Sub(startTime)),
+			Enclosure: Enclosure{
+				URL:    baseURL + "/assets/" + filepath.Base(aacFilePath),
+				Type:   "audio/aac",
+				Length: aacFileSize,
+			},
 			PubDateTime: startTime,
 		})
 		return nil
