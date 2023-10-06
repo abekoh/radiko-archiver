@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -119,12 +120,20 @@ func generateRSS(outDirPath string) (*RSS, error) {
 			Author:      prog.Pfm,
 			Subtitle:    prog.SubTitle,
 			Duration:    formatDuration(endTime.Sub(startTime)),
+			PubDateTime: startTime,
 		})
 		return nil
 	}); err != nil {
 		return nil, fmt.Errorf("failed to walk: %w", err)
 	}
-
+	slices.SortFunc(items, func(i, j Item) int {
+		if i.PubDateTime.After(j.PubDateTime) {
+			return -1
+		} else if i.PubDateTime.Before(j.PubDateTime) {
+			return 1
+		}
+		return 0
+	})
 	rs := &RSS{
 		Version: "2.0",
 		Atom:    "http://www.w3.org/2005/Atom",

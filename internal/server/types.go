@@ -49,6 +49,8 @@ type Item struct {
 	Subtitle    string    `xml:"itunes:subtitle,omitempty"`
 	Duration    string    `xml:"itunes:duration,omitempty"`
 	Enclosure   Enclosure `xml:"enclosure,omitempty"`
+
+	PubDateTime time.Time `xml:"-"`
 }
 
 type GUID struct {
