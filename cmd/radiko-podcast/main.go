@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/abekoh/radiko-podcast/internal/radiko"
+	"github.com/abekoh/radiko-podcast/internal/server"
 	"github.com/lmittmann/tint"
 )
 
@@ -52,7 +53,10 @@ func main() {
 		return
 	}
 
-	radiko.RunScheduler(context.Background(), rulesPath, outDirPath)
+	ctx := context.Background()
+
+	radiko.RunScheduler(ctx, rulesPath, outDirPath)
+	server.RunServer(ctx, outDirPath)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
