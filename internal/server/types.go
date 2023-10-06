@@ -8,13 +8,13 @@ import (
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
 
 type RSS struct {
-	XMLName xml.Name  `xml:"rss"`
-	Version string    `xml:"version,attr"`
-	Atom    string    `xml:"xmlns:atom,attr"`
-	Itunes  string    `xml:"xmlns:itunes,attr"`
-	Media   string    `xml:"xmlns:media,attr"`
-	DC      string    `xml:"xmlns:dc,attr"`
-	Channel []Channel `xml:"channel"`
+	XMLName xml.Name `xml:"rss"`
+	Version string   `xml:"version,attr"`
+	Atom    string   `xml:"xmlns:atom,attr"`
+	Itunes  string   `xml:"xmlns:itunes,attr"`
+	Media   string   `xml:"xmlns:media,attr"`
+	DC      string   `xml:"xmlns:dc,attr"`
+	Channel Channel  `xml:"channel"`
 }
 
 type Channel struct {
@@ -30,7 +30,7 @@ type Channel struct {
 	Summary      string      `xml:"itunes:summary,omitempty"`
 	Owner        ITunesOwner `xml:"itunes:owner,omitempty"`
 	Language     string      `xml:"language,omitempty"`
-	Item         []Item      `xml:"item"`
+	Items        []Item      `xml:"item"`
 }
 
 type ITunesOwner struct {

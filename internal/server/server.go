@@ -72,7 +72,7 @@ func updateRSS(ctx context.Context, outDirPath string) {
 
 func generateRSS(outDirPath string) (*RSS, error) {
 	logger := slog.Default().With("job", "generateRSS")
-	channelMap := make(map[string]Channel)
+	var items []Item
 	if err := filepath.WalkDir(outDirPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("failed to walk: %w", err)
@@ -97,18 +97,6 @@ func generateRSS(outDirPath string) (*RSS, error) {
 			return fmt.Errorf("failed to unmarshal xml: %w", err)
 		}
 
-		channel, ok := channelMap[prog.Title]
-		if !ok {
-			channel = Channel{
-				Title:     prog.Title,
-				Generator: "abekoh/radiko-podcast",
-				Owner: ITunesOwner{
-					Name: prog.Pfm,
-				},
-				Language: "ja",
-				Item:     []Item{},
-			}
-		}
 		startTime, err := time.ParseInLocation("20060102150405", prog.Ft, JST)
 		if err != nil {
 			return fmt.Errorf("failed to parse start time: %w", err)
@@ -117,33 +105,37 @@ func generateRSS(outDirPath string) (*RSS, error) {
 		if err != nil {
 			return fmt.Errorf("failed to parse end time: %w", err)
 		}
-		channel.Item = append(channel.Item, Item{
-			Title: prog.Title,
-			// Description: prog.Info,
-			PubDate:  startTime.Format(time.RFC1123Z),
-			Link:     prog.URL,
-			GUID:     GUID{},
-			Author:   prog.Pfm,
-			Subtitle: prog.SubTitle,
-			Duration: formatDuration(endTime.Sub(startTime)),
+		items = append(items, Item{
+			Title:       prog.Title,
+			Description: "<![CDATA[ " + prog.Info + "]]>",
+			PubDate:     startTime.Format(time.RFC1123Z),
+			Link:        prog.URL,
+			GUID:        GUID{},
+			Author:      prog.Pfm,
+			Subtitle:    prog.SubTitle,
+			Duration:    formatDuration(endTime.Sub(startTime)),
 		})
-		channelMap[prog.Title] = channel
 		return nil
 	}); err != nil {
 		return nil, fmt.Errorf("failed to walk: %w", err)
 	}
 
-	channels := make([]Channel, 0, len(channelMap))
-	for _, channel := range channelMap {
-		channels = append(channels, channel)
-	}
 	rs := &RSS{
 		Version: "2.0",
 		Atom:    "http://www.w3.org/2005/Atom",
 		Itunes:  "http://www.itunes.com/dtds/podcast-1.0.dtd",
 		Media:   "http://search.yahoo.com/mrss/",
 		DC:      "http://purl.org/dc/elements/1.1/",
-		Channel: channels,
+		Channel: Channel{
+			Title:       "abekoh's Podcast feed",
+			Description: "Podcast feed for abekoh",
+			Generator:   "abekoh/radiko-podcast",
+			Owner: ITunesOwner{
+				Name: "abekoh",
+			},
+			Language: "ja",
+			Items:    items,
+		},
 	}
 	var buf bytes.Buffer
 	enc := xml.NewEncoder(&buf)
