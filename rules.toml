@@ -11,11 +11,3 @@ station_id = "LFR"
 weekday = "Sun"
 start = "01:00"
 duration = "2h"
-
-
-[[rules]]
-name = "ナインティナインののオールナイトニッポン"
-station_id = "LFR"
-weekday = "Fri"
-start = "01:00"
-duration = "2h"
