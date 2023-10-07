@@ -62,7 +62,9 @@ func main() {
 	ctx := context.Background()
 
 	radiko.RunScheduler(ctx, cnf)
-	server.RunServer(ctx, cnf)
+	if cnf.Server.Enabled {
+		server.RunServer(ctx, cnf)
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)

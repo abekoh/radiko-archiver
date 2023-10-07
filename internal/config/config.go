@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -14,39 +15,41 @@ type Config struct {
 }
 
 type Radiko struct {
-	offsetTimeStr      string `toml:"offset_time"`
-	plannerIntervalStr string `toml:"planner_interval"`
-	fetchTimeoutStr    string `toml:"fetch_timeout"`
+	OffsetTimeStr      string `toml:"offset_time"`
+	PlannerIntervalStr string `toml:"planner_interval"`
+	FetchTimeoutStr    string `toml:"fetch_timeout"`
 
 	OffsetTime      time.Duration `toml:"-"`
 	PlannerInterval time.Duration `toml:"-"`
 	FetchTimeout    time.Duration `toml:"-"`
 }
 
+type Server struct {
+	Enabled bool   `toml:"enabled"`
+	Port    int    `toml:"port"`
+	BaseURL string `toml:"base_url"`
+}
+
 func (r *Radiko) updateTime() error {
-	offsetTime, err := time.ParseDuration(r.offsetTimeStr)
+	offsetTime, err := time.ParseDuration(r.OffsetTimeStr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse offset_time: %w", err)
 	}
 	r.OffsetTime = offsetTime
 
-	plannerInterval, err := time.ParseDuration(r.plannerIntervalStr)
+	plannerInterval, err := time.ParseDuration(r.PlannerIntervalStr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse planner_interval: %w", err)
 	}
 	r.PlannerInterval = plannerInterval
 
-	fetchTimeout, err := time.ParseDuration(r.fetchTimeoutStr)
+	fetchTimeout, err := time.ParseDuration(r.FetchTimeoutStr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse fetch_timeout: %w", err)
 	}
 	r.FetchTimeout = fetchTimeout
 
 	return nil
-}
-
-type Server struct {
-	BaseURL string `toml:"base_url"`
 }
 
 func Parse(path string) (*Config, error) {

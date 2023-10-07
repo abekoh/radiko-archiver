@@ -7,4 +7,6 @@ planner_interval = "10m"
 fetch_timeout = "3m"
 
 [server]
+port = 8080
+enabled = true
 base_url = "http://localhost:8080"
