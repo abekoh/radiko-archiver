@@ -12,7 +12,7 @@ type Config struct {
 	OutDirPath string  `toml:"out_dir_path"`
 	RulesPath  string  `toml:"rules_path"`
 	Radiko     Radiko  `toml:"radiko"`
-	Server     Server  `toml:"server"`
+	Feed       Server  `toml:"feed"`
 	Dropbox    Dropbox `toml:"dropbox"`
 }
 

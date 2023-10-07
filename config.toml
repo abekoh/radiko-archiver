@@ -6,7 +6,7 @@ offset_time = "6h"
 planner_interval = "10m"
 fetch_timeout = "3m"
 
-[server]
-port = 8080
+[feed]
 enabled = true
+port = 8080
 base_url = "http://localhost:8080"

@@ -29,14 +29,14 @@ var (
 
 func RunServer(ctx context.Context, cnf *config.Config) {
 	go func() {
-		updateRSS(ctx, cnf.OutDirPath, cnf.Server.BaseURL)
+		updateRSS(ctx, cnf.OutDirPath, cnf.Feed.BaseURL)
 	}()
 	go func() {
 		r := mux.NewRouter()
 		r.HandleFunc("/", getRSS)
 		r.HandleFunc("/assets/{filename}", downloadAsset(cnf.OutDirPath))
 		http.Handle("/", r)
-		http.ListenAndServe(fmt.Sprintf(":%d", cnf.Server.Port), nil)
+		http.ListenAndServe(fmt.Sprintf(":%d", cnf.Feed.Port), nil)
 	}()
 }
 

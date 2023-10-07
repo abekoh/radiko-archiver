@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/abekoh/radiko-podcast/internal/config"
+	"github.com/abekoh/radiko-podcast/internal/feed"
 	"github.com/abekoh/radiko-podcast/internal/radiko"
-	"github.com/abekoh/radiko-podcast/internal/server"
 	"github.com/lmittmann/tint"
 )
 
@@ -62,8 +62,8 @@ func main() {
 	ctx := context.Background()
 
 	radiko.RunScheduler(ctx, cnf)
-	if cnf.Server.Enabled {
-		server.RunServer(ctx, cnf)
+	if cnf.Feed.Enabled {
+		feed.RunServer(ctx, cnf)
 	}
 
 	sig := make(chan os.Signal, 1)
