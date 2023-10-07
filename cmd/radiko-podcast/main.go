@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,17 +23,35 @@ func init() {
 	if err := godotenv.Load(); err != nil {
 		panic(err)
 	}
-	slog.SetDefault(
-		slog.New(
-			tint.NewHandler(
-				os.Stderr,
-				&tint.Options{
-					Level:      slog.LevelDebug,
-					TimeFormat: time.Kitchen,
-				},
+
+	var logLevel slog.Level
+	logLevelEnv := os.Getenv("LOG_LEVEL")
+	switch {
+	case strings.EqualFold(logLevelEnv, "debug"):
+		logLevel = slog.LevelDebug
+	case strings.EqualFold(logLevelEnv, "warn"):
+		logLevel = slog.LevelWarn
+	case strings.EqualFold(logLevelEnv, "error"):
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+
+	logColorEnv := os.Getenv("LOG_COLOR")
+	if strings.EqualFold(logColorEnv, "true") {
+		slog.SetDefault(
+			slog.New(
+				tint.NewHandler(
+					os.Stderr,
+					&tint.Options{
+						Level:      logLevel,
+						TimeFormat: time.Kitchen,
+					},
+				),
 			),
-		),
-	)
+		)
+	}
+
 }
 
 func main() {
