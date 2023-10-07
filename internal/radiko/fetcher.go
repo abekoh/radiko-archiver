@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/abekoh/radiko-podcast/internal/config"
+	"github.com/abekoh/radiko-archiver/internal/config"
 	goradiko "github.com/yyoshiki41/go-radiko"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -41,7 +41,7 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, cnf *config.Con
 				go func(ctx context.Context, s Schedule) {
 					log := slog.Default().With("job", fmt.Sprintf("fetcher-%s-%s", s.StationID, s.StartTime.Format("20060102150405")))
 
-					workingDirPath, err := os.MkdirTemp("", "radiko-podcast-*")
+					workingDirPath, err := os.MkdirTemp("", "radiko-archiver-*")
 					if err != nil {
 						log.Error("failed to create temp dir", "error", err)
 						toDone <- false

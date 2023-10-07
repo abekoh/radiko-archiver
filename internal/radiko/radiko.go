@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/abekoh/radiko-podcast/internal/config"
+	"github.com/abekoh/radiko-archiver/internal/config"
 )
 
 func RunScheduler(ctx context.Context, cnf *config.Config) {

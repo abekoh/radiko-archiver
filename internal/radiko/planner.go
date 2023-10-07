@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/abekoh/radiko-podcast/internal/config"
+	"github.com/abekoh/radiko-archiver/internal/config"
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/go-cmp/cmp"
 )

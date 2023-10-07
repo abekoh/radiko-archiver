@@ -8,7 +8,7 @@ import (
 
 	"log/slog"
 
-	"github.com/abekoh/radiko-podcast/internal/config"
+	"github.com/abekoh/radiko-archiver/internal/config"
 	sdk "github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/files"
 	"github.com/fsnotify/fsnotify"

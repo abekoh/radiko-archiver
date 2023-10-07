@@ -1,4 +1,4 @@
-module github.com/abekoh/radiko-podcast
+module github.com/abekoh/radiko-archiver
 
 go 1.21.1
 

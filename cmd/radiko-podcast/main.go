@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/abekoh/radiko-podcast/internal/config"
-	"github.com/abekoh/radiko-podcast/internal/dropbox"
-	"github.com/abekoh/radiko-podcast/internal/feed"
-	"github.com/abekoh/radiko-podcast/internal/radiko"
+	"github.com/abekoh/radiko-archiver/internal/config"
+	"github.com/abekoh/radiko-archiver/internal/dropbox"
+	"github.com/abekoh/radiko-archiver/internal/feed"
+	"github.com/abekoh/radiko-archiver/internal/radiko"
 	"github.com/joho/godotenv"
 	"github.com/lmittmann/tint"
 )
@@ -67,7 +67,6 @@ func main() {
 		logger.Error("failed to parse config", "error", err)
 		os.Exit(1)
 	}
-
 	if err := os.MkdirAll(cnf.OutDirPath, 0755); err != nil {
 		logger.Error("failed to create output directory", "error", err)
 		os.Exit(1)

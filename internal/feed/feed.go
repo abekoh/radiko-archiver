@@ -16,7 +16,7 @@ import (
 
 	"log/slog"
 
-	"github.com/abekoh/radiko-podcast/internal/config"
+	"github.com/abekoh/radiko-archiver/internal/config"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/mux"
 	goradiko "github.com/yyoshiki41/go-radiko"
@@ -148,7 +148,7 @@ func generateRSS(outDirPath, baseURL string) (*RSS, error) {
 		Channel: Channel{
 			Title:       "abekoh's Podcast feed",
 			Description: "Podcast feed for abekoh",
-			Generator:   "abekoh/radiko-podcast",
+			Generator:   "abekoh/radiko-archiver",
 			Owner: ITunesOwner{
 				Name: "abekoh",
 			},
