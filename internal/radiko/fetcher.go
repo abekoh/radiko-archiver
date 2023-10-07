@@ -13,12 +13,13 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/abekoh/radiko-podcast/internal/config"
 	goradiko "github.com/yyoshiki41/go-radiko"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
-func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath string, toDone chan<- bool) {
+func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, cnf *config.Config, toDone chan<- bool) {
 	logger := slog.Default().With("job", "fetchers")
 	logger.Debug("start fetchers")
 
@@ -47,14 +48,14 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, outDirPath stri
 						return
 					}
 
-					pg, err := fetch(ctx, log, s, radikoClient, outDirPath, workingDirPath)
+					pg, err := fetch(ctx, log, s, radikoClient, cnf.OutDirPath, workingDirPath)
 					if err != nil {
 						log.Error("failed to fetch", "error", err)
 						toDone <- false
 						return
 					}
 
-					if err := convert(ctx, log, s, pg, outDirPath, workingDirPath); err != nil {
+					if err := convert(ctx, log, s, pg, cnf.OutDirPath, workingDirPath); err != nil {
 						log.Error("failed to convert", "error", err)
 						toDone <- false
 						return

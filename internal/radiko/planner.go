@@ -6,17 +6,18 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/abekoh/radiko-podcast/internal/config"
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/go-cmp/cmp"
 )
 
-func RunPlanner(ctx context.Context, toDispatcher chan<- []Schedule, rulesPath string) {
+func RunPlanner(ctx context.Context, toDispatcher chan<- []Schedule, cnf *config.Config) {
 	logger := slog.Default().With("job", "planner")
 	logger.Debug("start planner")
 
 	var rules []Rule
 	loadr := func() bool {
-		rs, err := loadRules(rulesPath)
+		rs, err := loadRules(cnf.RulesPath)
 		if err != nil {
 			logger.Error("failed to load rules", "error", err)
 			return false
@@ -47,7 +48,7 @@ func RunPlanner(ctx context.Context, toDispatcher chan<- []Schedule, rulesPath s
 			panic(fmt.Errorf("failed to create watcher: %w", err))
 		}
 		defer watcher.Close()
-		if err := watcher.Add(rulesPath); err != nil {
+		if err := watcher.Add(cnf.RulesPath); err != nil {
 			panic(fmt.Errorf("failed to add watcher: %w", err))
 		}
 		for {

@@ -16,6 +16,7 @@ import (
 
 	"log/slog"
 
+	"github.com/abekoh/radiko-podcast/internal/config"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/mux"
 	goradiko "github.com/yyoshiki41/go-radiko"
@@ -26,14 +27,14 @@ var (
 	rssMu sync.RWMutex
 )
 
-func RunServer(ctx context.Context, outDirPath string, baseURL string) {
+func RunServer(ctx context.Context, cnf *config.Config) {
 	go func() {
-		updateRSS(ctx, outDirPath, baseURL)
+		updateRSS(ctx, cnf.OutDirPath, cnf.Server.BaseURL)
 	}()
 	go func() {
 		r := mux.NewRouter()
 		r.HandleFunc("/", getRSS)
-		r.HandleFunc("/assets/{filename}", downloadAsset(outDirPath))
+		r.HandleFunc("/assets/{filename}", downloadAsset(cnf.OutDirPath))
 		http.Handle("/", r)
 		http.ListenAndServe(":8080", nil)
 	}()

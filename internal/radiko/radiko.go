@@ -6,18 +6,20 @@ import (
 	"log/slog"
 	"regexp"
 	"time"
+
+	"github.com/abekoh/radiko-podcast/internal/config"
 )
 
-func RunScheduler(ctx context.Context, rulesPath, outDirPath string) {
+func RunScheduler(ctx context.Context, cnf *config.Config) {
 	toDispatcher := make(chan []Schedule)
 	toFetcher := make(chan Schedule)
 
-	RunPlanner(ctx, toDispatcher, rulesPath)
+	RunPlanner(ctx, toDispatcher, cnf)
 	RunDispatcher(ctx, toDispatcher, toFetcher)
-	RunFetchers(ctx, toFetcher, outDirPath, nil)
+	RunFetchers(ctx, toFetcher, cnf, nil)
 }
 
-func RunFromURL(ctx context.Context, tsURL, outDirPath string) {
+func RunFromURL(ctx context.Context, tsURL string, cnf *config.Config) {
 	logger := slog.Default().With("job", "run-from-url")
 	toFetcher := make(chan Schedule)
 	toDone := make(chan bool)
@@ -31,7 +33,7 @@ func RunFromURL(ctx context.Context, tsURL, outDirPath string) {
 		return
 	}
 	logger.Info("start", "schedule", sche)
-	RunFetchers(ctx, toFetcher, outDirPath, toDone)
+	RunFetchers(ctx, toFetcher, cnf, toDone)
 	toFetcher <- sche
 	if <-toDone {
 		logger.Info("done")

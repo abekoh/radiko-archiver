@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/abekoh/radiko-podcast/internal/config"
 	"github.com/abekoh/radiko-podcast/internal/radiko"
 	"github.com/abekoh/radiko-podcast/internal/server"
 	"github.com/lmittmann/tint"
@@ -32,14 +33,18 @@ func init() {
 func main() {
 	logger := slog.Default().With("job", "main")
 
-	var rulesPath, outDirPath, url, baseURL string
-	flag.StringVar(&rulesPath, "rules", "rules.toml", "rules config path")
-	flag.StringVar(&outDirPath, "out", "out", "output directory path")
-	flag.StringVar(&baseURL, "baseurl", "http://localhost:8080", "base url")
-	flag.StringVar(&url, "url", "", "radiko channel url")
+	var configPath, radikoTSURL string
+	flag.StringVar(&configPath, "config", "config.toml", "config path")
+	flag.StringVar(&radikoTSURL, "justnow", "", "fetch and encode just now with radiko time-shifted URL")
 	flag.Parse()
 
-	if err := os.MkdirAll(outDirPath, 0755); err != nil {
+	cnf, err := config.Parse(configPath)
+	if err != nil {
+		logger.Error("failed to parse config", "error", err)
+		os.Exit(1)
+	}
+
+	if err := os.MkdirAll(cnf.OutDirPath, 0755); err != nil {
 		logger.Error("failed to create output directory", "error", err)
 		os.Exit(1)
 	}
@@ -49,15 +54,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	if url != "" {
-		radiko.RunFromURL(context.Background(), url, outDirPath)
+	if radikoTSURL != "" {
+		radiko.RunFromURL(context.Background(), radikoTSURL, cnf)
 		return
 	}
 
 	ctx := context.Background()
 
-	radiko.RunScheduler(ctx, rulesPath, outDirPath)
-	server.RunServer(ctx, outDirPath, baseURL)
+	radiko.RunScheduler(ctx, cnf)
+	server.RunServer(ctx, cnf)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
