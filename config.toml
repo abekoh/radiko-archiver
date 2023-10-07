@@ -7,6 +7,9 @@ planner_interval = "10m"
 fetch_timeout = "3m"
 
 [feed]
-enabled = true
+enabled = false
 port = 8080
 base_url = "http://localhost:8080"
+
+[dropbox]
+enabled = true

@@ -11,12 +11,17 @@ import (
 	"time"
 
 	"github.com/abekoh/radiko-podcast/internal/config"
+	"github.com/abekoh/radiko-podcast/internal/dropbox"
 	"github.com/abekoh/radiko-podcast/internal/feed"
 	"github.com/abekoh/radiko-podcast/internal/radiko"
+	"github.com/joho/godotenv"
 	"github.com/lmittmann/tint"
 )
 
 func init() {
+	if err := godotenv.Load(); err != nil {
+		panic(err)
+	}
 	slog.SetDefault(
 		slog.New(
 			tint.NewHandler(
@@ -64,6 +69,9 @@ func main() {
 	radiko.RunScheduler(ctx, cnf)
 	if cnf.Feed.Enabled {
 		feed.RunServer(ctx, cnf)
+	}
+	if cnf.Dropbox.Enabled {
+		dropbox.RunSyncer(ctx, cnf)
 	}
 
 	sig := make(chan os.Signal, 1)
