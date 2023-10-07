@@ -20,9 +20,7 @@ import (
 )
 
 func init() {
-	if err := godotenv.Load(); err != nil {
-		panic(err)
-	}
+	_ = godotenv.Load()
 
 	var logLevel slog.Level
 	logLevelEnv := os.Getenv("LOG_LEVEL")
