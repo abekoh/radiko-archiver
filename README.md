@@ -85,4 +85,6 @@ Only download with radiko time-shifted URL.
 radiko-archiver -now https://radiko.jp/#!/ts/LFR/20231001010000
 ```
 
-## 
+## References
+
+- [yyoshiki41/radigo: Record radiko 📻](https://github.com/yyoshiki41/radigo)
