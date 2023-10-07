@@ -40,7 +40,7 @@ func main() {
 
 	var configPath, radikoTSURL string
 	flag.StringVar(&configPath, "config", "config.toml", "config path")
-	flag.StringVar(&radikoTSURL, "justnow", "", "fetch and encode just now with radiko time-shifted URL")
+	flag.StringVar(&radikoTSURL, "now", "", "fetch and encode just now with radiko time-shifted URL")
 	flag.Parse()
 
 	cnf, err := config.Parse(configPath)
