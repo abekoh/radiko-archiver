@@ -36,7 +36,7 @@ func RunServer(ctx context.Context, cnf *config.Config) {
 		r.HandleFunc("/", getRSS)
 		r.HandleFunc("/assets/{filename}", downloadAsset(cnf.OutDirPath))
 		http.Handle("/", r)
-		http.ListenAndServe(":8080", nil)
+		http.ListenAndServe(fmt.Sprintf(":%d", cnf.Server.Port), nil)
 	}()
 }
 
@@ -145,8 +145,6 @@ func generateRSS(outDirPath, baseURL string) (*RSS, error) {
 		Version: "2.0",
 		Atom:    "http://www.w3.org/2005/Atom",
 		Itunes:  "http://www.itunes.com/dtds/podcast-1.0.dtd",
-		Media:   "http://search.yahoo.com/mrss/",
-		DC:      "http://purl.org/dc/elements/1.1/",
 		Channel: Channel{
 			Title:       "abekoh's Podcast feed",
 			Description: "Podcast feed for abekoh",

@@ -12,8 +12,6 @@ type RSS struct {
 	Version string   `xml:"version,attr"`
 	Atom    string   `xml:"xmlns:atom,attr"`
 	Itunes  string   `xml:"xmlns:itunes,attr"`
-	Media   string   `xml:"xmlns:media,attr"`
-	DC      string   `xml:"xmlns:dc,attr"`
 	Channel Channel  `xml:"channel"`
 }
 
