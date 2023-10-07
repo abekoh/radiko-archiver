@@ -2,16 +2,18 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/BurntSushi/toml"
 )
 
 type Config struct {
-	OutDirPath string `toml:"out_dir_path"`
-	RulesPath  string `toml:"rules_path"`
-	Radiko     Radiko `toml:"radiko"`
-	Server     Server `toml:"server"`
+	OutDirPath string  `toml:"out_dir_path"`
+	RulesPath  string  `toml:"rules_path"`
+	Radiko     Radiko  `toml:"radiko"`
+	Server     Server  `toml:"server"`
+	Dropbox    Dropbox `toml:"dropbox"`
 }
 
 type Radiko struct {
@@ -28,6 +30,11 @@ type Server struct {
 	Enabled bool   `toml:"enabled"`
 	Port    int    `toml:"port"`
 	BaseURL string `toml:"base_url"`
+}
+
+type Dropbox struct {
+	Enabled bool   `toml:"enabled"`
+	Token   string `toml:"-"`
 }
 
 func (r *Radiko) updateTime() error {
@@ -60,5 +67,6 @@ func Parse(path string) (*Config, error) {
 	if err := cnf.Radiko.updateTime(); err != nil {
 		return nil, err
 	}
+	cnf.Dropbox.Token = os.Getenv("DROPBOX_TOKEN")
 	return &cnf, nil
 }
