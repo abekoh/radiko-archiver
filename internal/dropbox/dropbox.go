@@ -3,7 +3,6 @@ package dropbox
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
