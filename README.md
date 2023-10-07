@@ -18,7 +18,7 @@
 Install with `go install`
 
 ```go
-go install github.com/abekoh/radiko-archiver@latest
+go install github.com/abekoh/radiko-archiver/cmd/...@latest
 ```
 
 Setup config.toml
