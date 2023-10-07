@@ -54,7 +54,6 @@ func (r Rule) nextSchedule(t time.Time) Schedule {
 		RuleName:  r.Name,
 		StationID: r.StationID,
 		StartTime: time.Date(t.Year(), t.Month(), t.Day()-int(dayAbs), r.StartHour, r.StartMinute, 0, 0, JST),
-		Duration:  r.Duration,
 	}
 	if s.StartTime.Before(t) || s.StartTime.Equal(t) {
 		s.StartTime = s.StartTime.AddDate(0, 0, 7)
@@ -67,18 +66,15 @@ type Schedule struct {
 	RuleName  string
 	StationID StationID
 	StartTime time.Time
-	Duration  time.Duration
 	FetchTime time.Time
 }
 
 func (s Schedule) String() string {
 	return fmt.Sprintf(
-		"[%s] %s %s-%s(%s)(fetchTime:%s)",
+		"[%s] %s %s(fetchTime:%s)",
 		s.StationID,
 		s.RuleName,
 		s.StartTime.Format("2006/01/02 15:04"),
-		s.StartTime.Add(s.Duration).Format("15:04"),
-		s.Duration,
 		s.FetchTime.Format("2006/01/02 15:04"),
 	)
 }
@@ -90,7 +86,6 @@ func loadRules(path string) ([]Rule, error) {
 			StationID string `toml:"station_id"`
 			Weekday   string `toml:"weekday"`
 			Start     string `toml:"start"`
-			Duration  string `toml:"duration"`
 		} `toml:"rules"`
 	}
 	var config tomlConfig
@@ -125,11 +120,6 @@ func loadRules(path string) ([]Rule, error) {
 		if _, err := fmt.Sscanf(cRule.Start, "%d:%d", &rules[i].StartHour, &rules[i].StartMinute); err != nil {
 			return nil, fmt.Errorf("invalid start time: %s", cRule.Start)
 		}
-		dur, err := time.ParseDuration(cRule.Duration)
-		if err != nil {
-			return nil, fmt.Errorf("invalid duration: %s", cRule.Duration)
-		}
-		rules[i].Duration = dur
 	}
 	return rules, nil
 }
