@@ -27,9 +27,7 @@ func RunSyncer(ctx context.Context, cnf *config.Config) {
 			panic(fmt.Errorf("failed to add watcher: %w", err))
 		}
 		dbConfig := sdk.Config{
-			Logger:   log.Default(),
-			LogLevel: sdk.LogDebug,
-			Token:    cnf.Dropbox.Token,
+			Token: cnf.Dropbox.Token,
 		}
 		client := files.New(dbConfig)
 
@@ -77,7 +75,7 @@ func sync(ctx context.Context, cnf *config.Config, client files.Client, path str
 	} else if event.Has(fsnotify.Remove) {
 		logger.Info("deleting", "path", path)
 
-		_, err := client.Delete(&files.DeleteArg{
+		_, err := client.DeleteV2(&files.DeleteArg{
 			Path: "/" + filepath.Base(path),
 		})
 		if err != nil {
