@@ -27,10 +27,6 @@ func RunFetchers(ctx context.Context, toFetcher <-chan Schedule, cnf *config.Con
 	if err != nil {
 		panic(fmt.Errorf("failed to create radiko client: %w", err))
 	}
-	_, err = radikoClient.AuthorizeToken(ctx)
-	if err != nil {
-		panic(fmt.Errorf("failed to authorize token: %w", err))
-	}
 
 	go func() {
 		for {
@@ -78,6 +74,12 @@ const (
 
 func fetch(ctx context.Context, logger *slog.Logger, s Schedule, radikoClient *goradiko.Client, outDirPath string, workingDirPath string) (*goradiko.Prog, error) {
 	logger.Info("start fetching", "schedule", s)
+
+	_, err := radikoClient.AuthorizeToken(ctx)
+	if err != nil {
+		panic(fmt.Errorf("failed to authorize token: %w", err))
+	}
+
 	pg, err := radikoClient.GetProgramByStartTime(ctx, string(s.StationID), s.StartTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch program: %w", err)
