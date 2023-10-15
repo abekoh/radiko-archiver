@@ -31,7 +31,7 @@
     - name: Copy config.toml to remote
       copy:
         src: ./config.toml
-        dest: /etc/radiko-archiver/rules.toml
+        dest: /etc/radiko-archiver/config.toml
     - name: Deploy environment file for the service
       template:
         src: templates/radiko-archiver.env.j2
