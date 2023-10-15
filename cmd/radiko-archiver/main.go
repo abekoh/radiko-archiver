@@ -48,8 +48,17 @@ func init() {
 				),
 			),
 		)
+	} else {
+		slog.SetDefault(
+			slog.New(
+				slog.NewJSONHandler(
+					os.Stderr,
+					&slog.HandlerOptions{
+						Level: logLevel,
+					},
+				)),
+		)
 	}
-
 }
 
 func main() {
