@@ -1,0 +1,15 @@
+[Unit]
+Description=radiko-archiver
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/radiko-archiver -config /etc/radiko-archiver/rules.toml
+Restart=always
+User={{ service_user }}
+Group={{ service_group }}
+StandardOutput=syslog
+StandardError=syslog
+EnvironmentFile=/etc/radiko-archiver/env
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+[[rules]]
+name = "星野源のオールナイトニッポン"
+station_id = "LFR"
+weekday = "Wed"
+start = "01:00"
+
+[[rules]]
+name = "オードリーのオールナイトニッポン"
+station_id = "LFR"
+weekday = "Sun"
+start = "01:00"

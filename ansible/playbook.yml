@@ -1,0 +1,72 @@
+---
+- name: Deploy app as a service
+  hosts: all
+  become: true
+  tasks:
+    - name: Build Go binary for linux amd64
+      local_action:
+        module: command
+        chdir: ../
+        args:
+          cmd: go build -o ansible/radiko-archiver ./cmd/radiko-archiver
+      environment:
+        GOOS: linux
+        GOARCH: amd64
+      delegate_to: localhost
+      run_once: true
+    - name: Copy binary to remote
+      copy:
+        src: ./radiko-archiver
+        dest: /usr/local/bin/radiko-archiver
+        mode: '0755'
+    - name: Ensure /etc/radiko-archiver directory exists
+      file:
+        path: /etc/radiko-archiver
+        state: directory
+        mode: '0755'
+    - name: Copy rules.toml to remote
+      copy:
+          src: ./rules.toml
+          dest: /etc/radiko-archiver/rules.toml
+    - name: Copy config.toml to remote
+      copy:
+        src: ./config.toml
+        dest: /etc/radiko-archiver/rules.toml
+    - name: Deploy environment file for the service
+      template:
+        src: templates/radiko-archiver.env.j2
+        dest: /etc/radiko-archiver/env
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: '0600'
+      vars:
+        secret_var: "{{ dropbox_token }}"
+    - name: Ensure /opt/radiko-archiver directory exists
+      file:
+        path: /opt/radiko-archiver
+        state: directory
+        mode: '0755'
+    - name: Copy systemd service template
+      template:
+        src: templates/radiko-archiver.service.j2
+        dest: /etc/systemd/system/radiko-archiver.service
+    - name: Deploy rsyslog configuration for our service
+      template:
+        src: templates/rsyslog_radiko-archiver.conf.j2
+        dest: /etc/rsyslog.d/radiko-archiver.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart rsyslog
+    - name: Reload systemd
+      command: systemctl daemon-reload
+    - name: Enable and start the service
+      systemd:
+        name: radiko-archiver
+        enabled: yes
+        state: restarted
+  handlers:
+    - name: restart rsyslog
+      service:
+        name: rsyslog
+        state: restarted
