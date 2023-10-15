@@ -25,17 +25,13 @@ func RunSyncer(ctx context.Context, cnf *config.Config) {
 		if err := watcher.Add(cnf.OutDirPath); err != nil {
 			panic(fmt.Errorf("failed to add watcher: %w", err))
 		}
-		dbConfig := sdk.Config{
-			Token: cnf.Dropbox.Token,
-		}
-		client := files.New(dbConfig)
 
 		logger.Info("start watching")
 		for {
 			select {
 			case event := <-watcher.Events:
 				if event.Has(fsnotify.Create & fsnotify.Write & fsnotify.Remove) {
-					sync(ctx, cnf, client, event.Name, event)
+					sync(ctx, cnf, event.Name, event)
 				}
 			case <-ctx.Done():
 				return
@@ -44,10 +40,14 @@ func RunSyncer(ctx context.Context, cnf *config.Config) {
 	}()
 }
 
-func sync(ctx context.Context, cnf *config.Config, client files.Client, path string, event fsnotify.Event) {
+func sync(ctx context.Context, cnf *config.Config, path string, event fsnotify.Event) {
 	logger := slog.Default().With("job", "dropbox-sync")
 
 	logger.Debug("start sync", "op", event.Op, "path", path)
+
+	client := files.New(sdk.Config{
+		Token: cnf.Dropbox.Token,
+	})
 
 	if event.Has(fsnotify.Create) || event.Has(fsnotify.Write) {
 		logger.Info("uploading", "path", path)
