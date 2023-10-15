@@ -3,7 +3,7 @@ Description=radiko-archiver
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/radiko-archiver -config /etc/radiko-archiver/rules.toml
+ExecStart=/usr/local/bin/radiko-archiver -config /etc/radiko-archiver/config.toml
 Restart=always
 User={{ service_user }}
 Group={{ service_group }}

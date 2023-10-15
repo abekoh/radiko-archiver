@@ -26,12 +26,16 @@
         mode: '0755'
     - name: Copy rules.toml to remote
       copy:
-          src: ./rules.toml
-          dest: /etc/radiko-archiver/rules.toml
+        src: ./rules.toml
+        dest: /etc/radiko-archiver/rules.toml
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
     - name: Copy config.toml to remote
       copy:
         src: ./config.toml
         dest: /etc/radiko-archiver/config.toml
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
     - name: Deploy environment file for the service
       template:
         src: templates/radiko-archiver.env.j2
@@ -45,6 +49,8 @@
       file:
         path: /opt/radiko-archiver
         state: directory
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
         mode: '0755'
     - name: Copy systemd service template
       template:
@@ -54,8 +60,8 @@
       template:
         src: templates/rsyslog_radiko-archiver.conf.j2
         dest: /etc/rsyslog.d/radiko-archiver.conf
-        owner: root
-        group: root
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
         mode: '0644'
       notify: restart rsyslog
     - name: Reload systemd
