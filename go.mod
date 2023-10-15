@@ -2,8 +2,6 @@ module github.com/abekoh/radiko-archiver
 
 go 1.21.1
 
-replace github.com/yyoshiki41/go-radiko => ../../yyoshiki41/go-radiko
-
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/dropbox/dropbox-sdk-go-unofficial/v6 v6.0.5
